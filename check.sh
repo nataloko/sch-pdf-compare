@@ -25,6 +25,16 @@ step() {
 
 echo "sch-pdf-compare"
 
+# The packaging scripts, parsed. They are not run here — the AppImage build
+# takes half an hour in a container — so a typo in one of them would otherwise
+# surface at the end of that half hour.
+check_shell() {
+    for f in "$root"/check.sh "$root"/packaging/appimage/*.sh; do
+        bash -n "$f" || return 1
+    done
+}
+step "shell scripts parse" check_shell
+
 step "cargo build"        cargo build --manifest-path "$manifest" --all-targets
 step "cargo test"         cargo test --manifest-path "$manifest" --release
 step "cargo fmt"          cargo fmt --manifest-path "$manifest" --all --check

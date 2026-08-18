@@ -52,3 +52,8 @@ exec "${engine[@]}" run --rm --security-opt label=disable \
     --env "CARGO_BUILD_JOBS=${BUILD_JOBS:-6}" \
     "$MANYLINUX_IMAGE" \
     bash -lc 'export PATH="$CARGO_HOME/bin:$PATH"; exec "$@"' _ "$@"
+# `bash -lc`, not `bash -c`, and that is load-bearing: the image's gcc is 8.5,
+# which cannot build Qt 6 at all, and `gcc-toolset-14` is put on PATH by the
+# profile scripts a *login* shell reads. That toolset links the parts of a
+# modern libstdc++ it needs statically, which is how a gcc 14 build keeps the
+# base's GLIBCXX_3.4.25 ceiling — the ceiling `build.sh` then verifies.

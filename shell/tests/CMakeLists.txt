@@ -25,3 +25,16 @@ if(UNIX)
     set_target_properties(abi_test abi_cxx_test PROPERTIES
         BUILD_RPATH "${SC_CARGO_OUT}")
 endif()
+
+# The window, driven the way a reader drives it. Qt's offscreen platform, so no
+# X server and no window manager are involved.
+add_executable(view_test view_test.cpp)
+target_link_libraries(view_test PRIVATE sc_shell Qt6::Test)
+target_compile_definitions(view_test PRIVATE
+    SC_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
+target_compile_options(view_test PRIVATE ${SC_WARNINGS})
+add_test(NAME view COMMAND view_test)
+set_tests_properties(view PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+if(UNIX)
+    set_target_properties(view_test PROPERTIES BUILD_RPATH "${SC_CARGO_OUT}")
+endif()

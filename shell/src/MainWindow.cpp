@@ -28,6 +28,7 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
     auto *dock = new QDockWidget(tr("Changed sheets"), this);
     dock->setAllowedAreas(Qt::LeftDockWidgetArea | Qt::RightDockWidgetArea);
     m_sheets = new QTreeWidget(dock);
+    m_sheets->setObjectName(QStringLiteral("sheets"));
     m_sheets->setHeaderLabels({tr("Sheet"), tr("Changes")});
     m_sheets->setRootIsDecorated(false);
     m_sheets->setColumnWidth(0, 160);
@@ -45,6 +46,7 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
     });
 
     m_status = new QLabel(this);
+    m_status->setObjectName(QStringLiteral("status"));
     statusBar()->addWidget(m_status);
 
     buildMenus();
@@ -54,6 +56,7 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
 void MainWindow::buildMenus() {
     QMenu *file = menuBar()->addMenu(tr("&File"));
     QAction *open = file->addAction(tr("&Compare Two Files…"), this, &MainWindow::chooseAndOpen);
+    open->setObjectName(QStringLiteral("open"));
     open->setShortcut(QKeySequence::Open);
     file->addSeparator();
     QAction *quit = file->addAction(tr("&Quit"), qApp, &QApplication::quit);
@@ -64,12 +67,16 @@ void MainWindow::buildMenus() {
     // the most frequent thing a reader does here, and `Tab` next to them makes
     // the pair a blink comparator.
     QAction *overlay = view->addAction(tr("&Overlay"), this, [this] { setViewMode(0); });
+    overlay->setObjectName(QStringLiteral("overlay"));
     overlay->setShortcut(Qt::Key_3);
     QAction *onlyA = view->addAction(tr("Only &A"), this, [this] { setViewMode(1); });
+    onlyA->setObjectName(QStringLiteral("onlyA"));
     onlyA->setShortcut(Qt::Key_1);
     QAction *onlyB = view->addAction(tr("Only &B"), this, [this] { setViewMode(2); });
+    onlyB->setObjectName(QStringLiteral("onlyB"));
     onlyB->setShortcut(Qt::Key_2);
     QAction *flip = view->addAction(tr("&Flip A / B"), this, &MainWindow::blink);
+    flip->setObjectName(QStringLiteral("flip"));
     flip->setShortcut(Qt::Key_Tab);
     view->addSeparator();
     QAction *fw = view->addAction(tr("Fit &Width"), this,
@@ -85,15 +92,20 @@ void MainWindow::buildMenus() {
 
     QMenu *cmp = menuBar()->addMenu(tr("&Compare"));
     QAction *next = cmp->addAction(tr("&Next Change"), this, [this] { stepChange(1); });
+    next->setObjectName(QStringLiteral("next"));
     next->setShortcut(Qt::CTRL | Qt::Key_Period);
     QAction *prev = cmp->addAction(tr("&Previous Change"), this, [this] { stepChange(-1); });
+    prev->setObjectName(QStringLiteral("prev"));
     prev->setShortcut(Qt::CTRL | Qt::Key_Comma);
     cmp->addSeparator();
-    cmp->addAction(tr("Scan &Every Sheet"), this, &MainWindow::scanEverySheet);
+    cmp->addAction(tr("Scan &Every Sheet"), this, &MainWindow::scanEverySheet)
+        ->setObjectName(QStringLiteral("scanAll"));
     cmp->addSeparator();
     QAction *sr = cmp->addAction(tr("Shift Pairing &Right"), this, [this] { nudgePairing(1); });
+    sr->setObjectName(QStringLiteral("shiftRight"));
     sr->setShortcut(Qt::ALT | Qt::SHIFT | Qt::Key_Right);
     QAction *sl = cmp->addAction(tr("Shift Pairing &Left"), this, [this] { nudgePairing(-1); });
+    sl->setObjectName(QStringLiteral("shiftLeft"));
     sl->setShortcut(Qt::ALT | Qt::SHIFT | Qt::Key_Left);
     QAction *s0 = cmp->addAction(tr("Reset Pairing"), this, [this] {
         if (m_session) {
@@ -112,6 +124,7 @@ void MainWindow::buildMenus() {
             m_session->clearIgnoreRects();
         }
     });
+    clr->setObjectName(QStringLiteral("clearRegions"));
     clr->setShortcut(Qt::ALT | Qt::SHIFT | Qt::Key_C);
 }
 

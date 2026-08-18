@@ -3,7 +3,9 @@ samples/
 
 # build output
 target/
-shell/build/
+# every build tree, however it is named: `shell/build-release` was committed
+# whole once — 781 files — because only `shell/build/` was listed here.
+shell/build*/
 build/
 
 # editor / tooling

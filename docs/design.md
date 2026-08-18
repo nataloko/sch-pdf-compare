@@ -456,6 +456,28 @@ Everything reachable by a key is now also reachable by a button, and each button
 names its key in its tooltip, so the toolbar teaches the keyboard rather than
 replacing it.
 
+And then, with the buttons finally on show, the first person to press one found
+that **the view modes had never redrawn anything**. The mode was set on the
+session, the tile cache was emptied, the status line read "A only" — and the
+viewport went on drawing the overlay, because which document each sheet shows is
+settled in `relayout()` and nothing rebuilt the layout. The pairing shift was
+broken the same way and for the same reason, and it changes the page count as
+well. `invalidate()` now rebuilds the layout, which is what "everything drawn is
+stale" always meant.
+
+The reason it shipped is worth more than the fix. The window test drove the
+action and then asserted on **the words the window says about itself**:
+
+```cpp
+win.findChild<QAction *>("onlyA")->trigger();
+check(status->text().contains("A only"), "A only");
+```
+
+Both halves of that were true while the picture was wrong. The test now grabs
+the viewport in each mode and asserts the three differ, and the same for the
+pairing shift; putting the bug back makes all four fail. **For anything the
+reader looks at, assert on what was drawn.**
+
 ## Windows
 
 The core cross-compiles to `x86_64-pc-windows-gnu` with the MinGW toolchain, and

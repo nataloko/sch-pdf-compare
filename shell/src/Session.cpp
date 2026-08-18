@@ -299,6 +299,14 @@ int Session::ignoredCount(int page) const {
     return sc_session_ignored_count(m_s, page);
 }
 
+int Session::sizeMismatch(int page) const {
+    return sc_session_size_mismatch(m_s, page);
+}
+
+float Session::coverage(int page) const {
+    return sc_session_coverage(m_s, page);
+}
+
 QRectF Session::change(int page, int index) const {
     ScRectF r;
     if (sc_session_change(m_s, page, size_t(index), &r) < 0) {

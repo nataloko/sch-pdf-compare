@@ -25,6 +25,8 @@ const MAX_ROWS: usize = 40;
 /// What a sheet contributes to the report.
 struct SheetReport {
     page_no: i32,
+    size_mismatch: bool,
+    coverage: f32,
     /// Which sheet of each document, for a set where they do not line up.
     page_a: i32,
     page_b: i32,
@@ -60,6 +62,8 @@ impl Session {
             let pair = self.pair(s.page_no);
             sheets.push(SheetReport {
                 page_no: s.page_no,
+                size_mismatch: s.size_mismatch,
+                coverage: s.coverage,
                 page_a: pair.page_a,
                 page_b: pair.page_b,
                 regions: s.changes.len(),
@@ -107,6 +111,21 @@ impl Session {
             );
         }
 
+        let mismatched = sheets.iter().filter(|s| s.size_mismatch).count();
+        if mismatched > 0 {
+            let _ = writeln!(
+                out,
+                "\n> **{} a different size in the two revisions.** \
+                 Those sheets were compared at the first document's size with the other \
+                 cropped. Reissue the two revisions at the same paper size to compare them.",
+                if mismatched == 1 {
+                    "One sheet is".to_string()
+                } else {
+                    format!("{mismatched} sheets are")
+                }
+            );
+        }
+
         if sheets.is_empty() {
             let _ = writeln!(out, "\nNothing changed.");
             return out;
@@ -114,6 +133,16 @@ impl Session {
 
         for s in &sheets {
             let _ = writeln!(out, "\n## {}\n", sheet_title(s));
+            if s.size_mismatch {
+                // First, and in bold. Everything below it on this sheet is
+                // measured against the wrong thing.
+                let _ = writeln!(
+                    out,
+                    "> **The two revisions of this sheet are different sizes on paper.** \
+                     They were compared at the first document's size, with the other \
+                     cropped, so nothing below is a reliable account of what changed.\n"
+                );
+            }
             let mut notes = Vec::new();
             if s.regions > 0 {
                 notes.push(if s.regions == 1 {
@@ -126,6 +155,12 @@ impl Session {
                 notes.push(format!(
                     "{} inside an excluded region, not compared",
                     s.ignored
+                ));
+            }
+            if s.coverage >= 0.25 {
+                notes.push(format!(
+                    "they cover about {}% of the sheet, so it was substantially redrawn",
+                    (s.coverage * 100.0).round() as i32
                 ));
             }
             if !notes.is_empty() {

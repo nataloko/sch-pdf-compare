@@ -81,6 +81,11 @@ class Session : public QObject {
     // -1 when the sheet has not been scanned yet, which is not 0.
     int changeCount(int page) const;
     int ignoredCount(int page) const;
+    // 1 when the two sheets are different sizes on paper, 0 when they agree,
+    // -1 when the sheet has not been scanned.
+    int sizeMismatch(int page) const;
+    // How much of the sheet the changes cover, 0 to 1, or negative if unscanned.
+    float coverage(int page) const;
     QRectF change(int page, int index) const;
 
     // One difference in what the two revisions of a sheet say.

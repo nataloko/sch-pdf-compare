@@ -420,6 +420,33 @@ int32_t sc_session_change_count(const ScSession *s, int32_t page_no);
 int32_t sc_session_ignored_count(const ScSession *s, int32_t page_no);
 
 /**
+ * Whether the two sheets of this pair are the same size on paper.
+ *
+ * 1 when they differ, 0 when they agree, −1 when the sheet has not been
+ * scanned. A pair that differs is laid out to the first document's geometry and
+ * the second is cropped, so the count of regions means nothing — which is worse
+ * than a large count, because a small one reads as a nearly unchanged sheet.
+ *
+ * # Safety
+ * `s` must be null or a live session.
+ */
+int32_t sc_session_size_mismatch(const ScSession *s,
+                                 int32_t page_no);
+
+/**
+ * How much of the sheet the change regions cover, from 0 to 1. Negative when
+ * the sheet has not been scanned.
+ *
+ * The count of regions cannot tell a few small edits from a sheet that differs
+ * everywhere, because the clustering bridges neighbouring cells on purpose.
+ *
+ * # Safety
+ * `s` must be null or a live session.
+ */
+float sc_session_coverage(const ScSession *s,
+                          int32_t page_no);
+
+/**
  * One change region, in page points.
  *
  * # Safety

@@ -78,6 +78,8 @@ static void null_session_is_survivable(void) {
     check(sc_session_change_count(NULL, 1) == -1,
           "change_count(NULL) is -1, meaning not scanned");
     check(sc_session_ignored_count(NULL, 1) == -1, "ignored_count(NULL) is -1");
+    check(sc_session_size_mismatch(NULL, 1) == -1, "size_mismatch(NULL) is -1");
+    check(sc_session_coverage(NULL, 1) < 0, "coverage(NULL) is negative");
     check(sc_session_change(NULL, 1, 0, &r) < 0, "change(NULL) fails");
 
     ScSweepStatus sw;

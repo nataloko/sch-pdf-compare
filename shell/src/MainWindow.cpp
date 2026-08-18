@@ -787,11 +787,23 @@ void MainWindow::updateStatus() {
                                                  : tr("%1 regions repeat").arg(sw.suggested));
         }
     }
+    // Ahead of the counts, because it says they cannot be trusted.
+    if (m_session->sizeMismatch(page) == 1) {
+        text += tr("   ⚠ the two sheets are different sizes — the counts below "
+                   "are not reliable");
+    }
     if (n < 0) {
         text += tr("   not scanned");
     } else {
         text += QStringLiteral("   ") +
                 (n == 1 ? tr("1 change here") : tr("%1 changes here").arg(n));
+    }
+    const float covered = m_session->coverage(page);
+    if (covered >= 0.25f) {
+        // A count alone cannot separate a few edits from a sheet that differs
+        // everywhere, because the clustering bridges neighbouring cells.
+        text += QStringLiteral("   ") +
+                tr("covering %1% of the sheet").arg(int(covered * 100.0f + 0.5f));
     }
     if (ignored > 0) {
         text += QStringLiteral("   ") + tr("%1 excluded").arg(ignored);

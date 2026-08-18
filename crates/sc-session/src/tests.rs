@@ -641,3 +641,102 @@ fn a_net_name_cannot_break_the_table() {
         );
     }
 }
+
+#[test]
+fn two_sheets_of_different_paper_sizes_are_reported_as_such() {
+    // A drawing set reissued at a different paper size. The comparison lays both
+    // sides out to the first document's geometry and crops the second, so the
+    // second sheet is measured against its own top-left corner and the count
+    // that comes back means nothing.
+    //
+    // Measured on this pair: 18216 unmatched pixels on one side and 45693 on the
+    // other came back as 7 regions, because the clustering bridges neighbouring
+    // cells and a sheet that differs everywhere collapses into a few very large
+    // ones. A small count reading as a nearly unchanged sheet is the worst way
+    // for this to fail, so the sheet has to say that it is not comparable.
+    let Some(s) = session("different_paper") else {
+        return;
+    };
+    assert!(s.sheet_sizes_differ(1), "the sizes do differ");
+    let r = s.scan_page(1).expect("scans");
+    assert!(r.size_mismatch, "and the scan says so");
+    assert!(
+        r.coverage > 0.9,
+        "and reports that the changes cover the sheet, got {:.2}",
+        r.coverage
+    );
+}
+
+#[test]
+fn a_pair_of_matching_sheets_reports_no_size_mismatch() {
+    for set in ["same_producer", "native_ecad"] {
+        let Some(s) = session(set) else { return };
+        assert!(!s.sheet_sizes_differ(1), "{set}: the sizes agree");
+        assert!(!s.scan_page(1).expect("scans").size_mismatch, "{set}");
+    }
+}
+
+#[test]
+fn coverage_separates_a_few_edits_from_a_redrawn_sheet() {
+    // The count of regions cannot do this on its own.
+    let Some(s) = session("same_producer") else {
+        return;
+    };
+    let Some(sheet) = expect("same_producer", "probe_sheet") else {
+        return;
+    };
+    let r = s.scan_page(sheet).expect("scans");
+    assert!(
+        r.coverage < 0.25,
+        "a few edits cover little of the sheet: {:.2}",
+        r.coverage
+    );
+
+    let Some(bad) = session("different_paper") else {
+        return;
+    };
+    assert!(bad.scan_page(1).expect("scans").coverage > 0.9);
+}
+
+#[test]
+fn a_native_ecad_export_compares_cleanly() {
+    // The sample sets this was built against all went through a print-to-PDF
+    // path. This pair comes straight out of the ECAD tool instead, which is a
+    // different kind of PDF entirely — the comparison has to hold there too.
+    let Some(s) = session("native_ecad") else {
+        return;
+    };
+    let Some(n) = expect("native_ecad", "sheets") else {
+        return;
+    };
+    assert_eq!(s.page_count(), n);
+    // Sheet 1 changed, but it is a revision of the same drawing, not a redraw.
+    let r = s.scan_page(1).expect("scans");
+    assert!(!r.changes.is_empty(), "consecutive revisions do differ");
+    assert!(
+        r.coverage < 0.25,
+        "but sheet 1 is not redrawn: {:.2}",
+        r.coverage
+    );
+}
+
+#[test]
+fn the_report_leads_with_a_size_mismatch() {
+    let Some(s) = session("different_paper") else {
+        return;
+    };
+    let scanned: Vec<_> = (1..=3).map(|p| s.scan_page(p).expect("scans")).collect();
+    let r = s.report(&scanned);
+    assert!(
+        r.contains("a different size in the two revisions"),
+        "the report says so"
+    );
+    assert!(
+        r.contains("same paper size"),
+        "and says what to do about it"
+    );
+    // Before the first sheet's own account, so nobody reads the counts first.
+    let warning = r.find("a different size").expect("present");
+    let first_sheet = r.find("## Sheet").expect("present");
+    assert!(warning < first_sheet, "the warning comes first");
+}

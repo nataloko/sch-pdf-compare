@@ -22,6 +22,23 @@ pub struct SheetChanges {
     /// Regions that were found but fall inside an excluded rectangle. Counted,
     /// never silently dropped: "not compared" must not read as "unchanged".
     pub ignored: i32,
+    /// The two sheets are not the same size on paper.
+    ///
+    /// This is not a detail. The comparison lays both sides out to the first
+    /// document's geometry and crops the second, so an A3 sheet compared against
+    /// its A4 reissue is compared against its own top-left corner. The ink then
+    /// has nothing to do with the ink it is being measured against, and the
+    /// count that comes back is meaningless — which is far worse than a large
+    /// count, because it reads as a nearly unchanged sheet.
+    pub size_mismatch: bool,
+    /// How much of the sheet the change regions cover, from 0 to 1.
+    ///
+    /// The count of regions alone cannot tell "seven small edits" from "the
+    /// whole sheet is different": the clustering deliberately bridges
+    /// neighbouring cells, so a sheet that differs everywhere collapses into a
+    /// handful of very large regions. Measured on a real mismatched pair, 64000
+    /// unmatched pixels came back as 7 regions.
+    pub coverage: f32,
 }
 
 impl Session {
@@ -62,7 +79,40 @@ impl Session {
         let ink_b = ink_plane(as_pixels(rb.as_ref(), w, h).as_ref(), uw, uh);
 
         let found = find_changes(&ink_a, &ink_b, uw, uh, &self.options());
-        Ok(self.to_page_space(page_no, &found, zoom))
+        let mut out = self.to_page_space(page_no, &found, zoom);
+        out.size_mismatch = self.sheet_sizes_differ(page_no);
+        // Area of the regions against the area of the sheet. Overlapping boxes
+        // are counted twice, which can only make this larger, so it is capped —
+        // it is a signal that a sheet is substantially different, not a
+        // measurement.
+        let sheet = (uw * uh) as f32;
+        let covered: f32 = out
+            .changes
+            .iter()
+            .map(|r| (r.dx * zoom) * (r.dy * zoom))
+            .sum();
+        out.coverage = (covered / sheet).clamp(0.0, 1.0);
+        Ok(out)
+    }
+
+    /// True when the two sheets of a pair are not the same size on paper.
+    ///
+    /// A per-cent of tolerance, because a sheet that went through two PDF
+    /// producers can come back a fraction of a point different, and that is not
+    /// what this is for.
+    pub fn sheet_sizes_differ(&self, page_no: i32) -> bool {
+        let pair = self.pair(page_no);
+        if pair.page_a == 0 || pair.page_b == 0 {
+            return false;
+        }
+        let (doc_a, doc_b) = self.docs();
+        let (Ok((aw, ah)), Ok((bw, bh))) =
+            (doc_a.page_size(pair.page_a), doc_b.page_size(pair.page_b))
+        else {
+            return false;
+        };
+        let off = |x: f32, y: f32| (x - y).abs() > 0.01 * x.max(y).max(1.0);
+        off(aw, bw) || off(ah, bh)
     }
 
     /// Converts a scan's boxes to page points and splits off the ones the reader

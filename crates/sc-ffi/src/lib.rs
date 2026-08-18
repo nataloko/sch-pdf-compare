@@ -581,6 +581,39 @@ pub unsafe extern "C" fn sc_session_ignored_count(s: *const ScSession, page_no: 
     }
 }
 
+/// Whether the two sheets of this pair are the same size on paper.
+///
+/// 1 when they differ, 0 when they agree, −1 when the sheet has not been
+/// scanned. A pair that differs is laid out to the first document's geometry and
+/// the second is cropped, so the count of regions means nothing — which is worse
+/// than a large count, because a small one reads as a nearly unchanged sheet.
+///
+/// # Safety
+/// `s` must be null or a live session.
+#[no_mangle]
+pub unsafe extern "C" fn sc_session_size_mismatch(s: *const ScSession, page_no: i32) -> i32 {
+    match s.as_ref().and_then(|s| s.scans.get(&page_no)) {
+        Some(r) => i32::from(r.size_mismatch),
+        None => -1,
+    }
+}
+
+/// How much of the sheet the change regions cover, from 0 to 1. Negative when
+/// the sheet has not been scanned.
+///
+/// The count of regions cannot tell a few small edits from a sheet that differs
+/// everywhere, because the clustering bridges neighbouring cells on purpose.
+///
+/// # Safety
+/// `s` must be null or a live session.
+#[no_mangle]
+pub unsafe extern "C" fn sc_session_coverage(s: *const ScSession, page_no: i32) -> f32 {
+    match s.as_ref().and_then(|s| s.scans.get(&page_no)) {
+        Some(r) => r.coverage,
+        None => -1.0,
+    }
+}
+
 /// One change region, in page points.
 ///
 /// # Safety

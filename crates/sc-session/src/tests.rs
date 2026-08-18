@@ -740,3 +740,84 @@ fn the_report_leads_with_a_size_mismatch() {
     let first_sheet = r.find("## Sheet").expect("present");
     assert!(warning < first_sheet, "the warning comes first");
 }
+
+#[test]
+fn each_document_against_itself_reports_nothing() {
+    // The control for the whole comparison, run over every set on this machine
+    // rather than one of them. It covers a native ECAD export and a file whose
+    // cross-reference table other readers complain about, both of which arrived
+    // after the algorithm was settled.
+    let Some(m) = Samples::load() else { return };
+    for set in [
+        "same_producer",
+        "cross_producer",
+        "large",
+        "native_ecad",
+        "different_paper",
+    ] {
+        for side in ["a", "b"] {
+            let Some(p) = m.path(set, side) else { continue };
+            let s = Session::open(&p, &p).expect("opens");
+            for page in 1..=s.page_count() {
+                let r = s.scan_page(page).expect("scans");
+                assert!(
+                    r.changes.is_empty(),
+                    "{set}/{side} sheet {page} differs from itself"
+                );
+                assert!(!r.size_mismatch, "{set}/{side} sheet {page}");
+            }
+        }
+    }
+}
+
+#[test]
+fn more_tolerance_can_mean_more_regions() {
+    // Counter-intuitive, and worth pinning so that nobody "corrects" it.
+    //
+    // Tolerance removes the fringe that connects genuine differences to each
+    // other. The clustering bridges neighbouring cells, so taking the fringe
+    // away splits one large blob into several separate ones. The count goes up
+    // while the unmatched ink goes down, which is the pair of numbers to read
+    // together — and the reason a count alone is not a measure of how much
+    // changed.
+    let Some(mut s) = session("native_ecad") else {
+        return;
+    };
+    let mut measure = |tol: i32| {
+        let mut o = s.options();
+        o.tolerance = tol;
+        s.set_options(o);
+        let r = s.scan_page(18).expect("scans");
+        (r.changes.len(), r.pixels)
+    };
+    let (n0, px0) = measure(0);
+    let (n1, px1) = measure(1);
+    assert!(
+        px1 < px0,
+        "tolerance always removes unmatched ink: {px0} -> {px1}"
+    );
+    assert!(
+        n1 > n0,
+        "and here it splits the blobs apart: {n0} -> {n1} regions"
+    );
+}
+
+#[test]
+fn sheet_matching_holds_on_every_set() {
+    // Including a native ECAD export, and a pair issued at two paper sizes —
+    // the text does not care what size the paper is.
+    let Some(m) = Samples::load() else { return };
+    for set in ["same_producer", "native_ecad", "different_paper", "large"] {
+        let Some(_) = m.both(set) else { continue };
+        let Some(mut s) = session(set) else { continue };
+        let Some(n) = expect(set, "sheets") else {
+            continue;
+        };
+        s.auto_match().expect("matches");
+        assert_eq!(s.page_count(), n, "{set}: no sheet invented or lost");
+        for p in 1..=n {
+            let pair = s.pair(p);
+            assert_eq!((pair.page_a, pair.page_b), (p, p), "{set}: sheet {p}");
+        }
+    }
+}

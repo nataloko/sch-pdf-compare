@@ -218,12 +218,26 @@ sheet's own section of the report, and the head of the report all say it, and th
 report says what to do about it. A count that cannot be trusted has to be labelled
 as such before anybody reads it.
 
+**More tolerance can mean more regions.** Counter-intuitive, and measured: on one
+sheet the count went 31 → 47 as the tolerance went 0 → 1, while the unmatched ink
+halved from 18434 pixels to 9137. Tolerance removes the fringe that *connects*
+genuine differences to each other, and the clustering bridges neighbouring cells,
+so taking the fringe away splits one large blob into several. The count and the
+unmatched ink are a pair of numbers to read together. This is pinned by a test so
+that nobody corrects it.
+
 **A count of regions is not a measure of how much changed.** Each sheet now also
 carries the fraction of itself that the regions cover. Six edits cover a few per
 cent; the mismatched sheets cover 100%. On the other new set — a native ECAD
-export rather than a print-to-PDF — the sheets came back at 10%, 44% and 76%,
-which is the difference between a revision and a redraw, and no count of regions
-could have said it.
+export rather than a print-to-PDF — the sheets came back spread across every
+band, which is the difference between a revision and a redraw, and no count of
+regions could have said it: each of those sheets reports 33 to 56 regions
+whatever its coverage.
+
+That set is also the evidence that the comparison holds outside the print-to-PDF
+path it was built against. Every document in the corpus, compared against itself,
+reports exactly zero regions on every sheet — including the native ECAD export
+and a file whose cross-reference table other PDF readers complain about.
 
 ### Alignment and scaling are one problem
 

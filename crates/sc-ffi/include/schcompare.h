@@ -301,8 +301,32 @@ ScViewMode sc_session_view_mode(const ScSession *s);
 void sc_session_set_view_mode(ScSession *s, ScViewMode mode);
 
 /**
+ * The largest tolerance the core will accept.
+ *
+ * Asked for rather than written into the frontend: the ceiling is a property
+ * of the comparison kernel and has moved once already, and a spin box that
+ * stops one short of what the core allows is a control that lies.
+ *
+ * # Safety
+ * Callable with no preconditions.
+ */
+int32_t sc_max_tolerance(void);
+
+/**
+ * The tolerance past which small movements stop being reported.
+ *
+ * Not a limit — a line to tell the reader they have crossed. Above it the
+ * slack is wider than a component that shifted slightly, so such a shift reads
+ * as no change at all, and nothing else on screen would say so.
+ *
+ * # Safety
+ * Callable with no preconditions.
+ */
+int32_t sc_tolerance_hides_movement(void);
+
+/**
  * How far, in device pixels, ink may sit from its counterpart and still count
- * as the same artwork. Clamped to 0..=3.
+ * as the same artwork. Clamped to `0..=sc_max_tolerance()`.
  *
  * # Safety
  * `s` must be null or a live session.

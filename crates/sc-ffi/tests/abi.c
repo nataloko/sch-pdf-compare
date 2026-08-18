@@ -40,6 +40,13 @@ static void version_and_status_codes(void) {
 
     const char *e = sc_last_error();
     check(e != NULL, "sc_last_error is never null");
+
+    /* The frontend builds its tolerance control from these rather than from
+     * numbers of its own, so a ceiling that moved in the kernel must reach it. */
+    check(sc_max_tolerance() >= 1, "there is a tolerance ceiling");
+    check(sc_tolerance_hides_movement() > 0 &&
+              sc_tolerance_hides_movement() < sc_max_tolerance(),
+          "and a warning line below it");
 }
 
 static void null_session_is_survivable(void) {

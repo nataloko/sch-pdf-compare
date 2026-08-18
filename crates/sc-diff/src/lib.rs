@@ -52,8 +52,31 @@ impl ViewMode {
     }
 }
 
-/// More slack than this stops distinguishing a moved stroke from a deleted one.
-pub const MAX_TOLERANCE: i32 = 3;
+/// The most slack a reader can ask for, in device pixels.
+///
+/// It was 3, on the grounds that more than that stops distinguishing a stroke
+/// that moved from one that was deleted. That is true, and it is why the
+/// default is still 1 — but it was the wrong number to cap at, because the
+/// tolerance is in *device* pixels and so shrinks against the drawing as the
+/// reader zooms in. The fringe two PDF producers leave around the same stroke
+/// is about a pixel at 100%, and about three at 300%, which is exactly where a
+/// reviewer goes to look closely: the old ceiling ran out precisely when it was
+/// needed most.
+///
+/// The cost is bounded and was measured before the ceiling moved. Dilating an
+/// A4 sheet at 150 dpi takes 5.1 ms at radius 1 and 15.6 ms at radius 8 —
+/// sub-linear in the radius, because the pass is memory bound — against the
+/// tens of milliseconds MuPDF spends rendering the same sheet twice.
+pub const MAX_TOLERANCE: i32 = 8;
+
+/// Past this, the slack is wider than a small movement.
+///
+/// Not a limit: a line the frontend tells the reader they have crossed. A
+/// tolerance of 4 or more at the scan resolution is around a millimetre of
+/// paper, and a component that moved by less than that stops being reported at
+/// all. That is sometimes exactly what is wanted — and it must never be
+/// something the reader discovers afterwards.
+pub const TOLERANCE_HIDES_MOVEMENT: i32 = 3;
 
 /// How an excluded region is drawn: its artwork kept at this strength, edged in
 /// this colour, so it reads as "not compared" rather than "nothing changed".

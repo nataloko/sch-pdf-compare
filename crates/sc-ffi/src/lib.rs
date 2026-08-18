@@ -385,8 +385,34 @@ pub unsafe extern "C" fn sc_session_set_view_mode(s: *mut ScSession, mode: ScVie
     }
 }
 
+/// The largest tolerance the core will accept.
+///
+/// Asked for rather than written into the frontend: the ceiling is a property
+/// of the comparison kernel and has moved once already, and a spin box that
+/// stops one short of what the core allows is a control that lies.
+///
+/// # Safety
+/// Callable with no preconditions.
+#[no_mangle]
+pub extern "C" fn sc_max_tolerance() -> i32 {
+    sc_diff::MAX_TOLERANCE
+}
+
+/// The tolerance past which small movements stop being reported.
+///
+/// Not a limit — a line to tell the reader they have crossed. Above it the
+/// slack is wider than a component that shifted slightly, so such a shift reads
+/// as no change at all, and nothing else on screen would say so.
+///
+/// # Safety
+/// Callable with no preconditions.
+#[no_mangle]
+pub extern "C" fn sc_tolerance_hides_movement() -> i32 {
+    sc_diff::TOLERANCE_HIDES_MOVEMENT
+}
+
 /// How far, in device pixels, ink may sit from its counterpart and still count
-/// as the same artwork. Clamped to 0..=3.
+/// as the same artwork. Clamped to `0..=sc_max_tolerance()`.
 ///
 /// # Safety
 /// `s` must be null or a live session.

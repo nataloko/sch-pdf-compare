@@ -333,6 +333,59 @@ fn compose_tolerance_absorbs_a_moved_stroke() {
 }
 
 #[test]
+fn the_ceiling_reaches_past_a_zoomed_in_fringe() {
+    // Why the ceiling is 8 and not the 3 it started at. Tolerance is in device
+    // pixels, so a fringe that is one pixel wide at 100% is five at 500% — and
+    // 500% is where a reviewer goes to read a component value. At the old
+    // ceiling the overlay of a cross-producer pair broke down exactly when it
+    // was being looked at closely.
+    let mut levels_a = [0xffu8; 13];
+    levels_a[2] = 0x00;
+    let mut levels_b = [0xffu8; 13];
+    levels_b[7] = 0x00;
+    let da = make_gray(13, 1, &levels_a);
+    let db = make_gray(13, 1, &levels_b);
+    let a = gray(&da, 13, 1);
+    let b = gray(&db, 13, 1);
+
+    let coloured = |tol: i32| {
+        let out = compose(
+            Some(&a),
+            Some(&b),
+            Size::new(13, 1),
+            0,
+            ViewMode::Overlay,
+            &Options {
+                tolerance: tol,
+                ..red_green()
+            },
+            None,
+        )
+        .expect("composes");
+        (0..out.width)
+            .filter(|&x| {
+                let p = out.bgr_at(x, 0);
+                let lo = *p.iter().min().expect("three channels") as i32;
+                let hi = *p.iter().max().expect("three channels") as i32;
+                hi - lo > 40
+            })
+            .count()
+    };
+
+    assert_eq!(coloured(3), 2, "five pixels apart is past the old ceiling");
+    assert_eq!(coloured(5), 0, "and within the new one");
+    assert_eq!(
+        coloured(MAX_TOLERANCE + 3),
+        0,
+        "asking for more than the ceiling is clamped, not refused"
+    );
+    assert!(
+        TOLERANCE_HIDES_MOVEMENT < MAX_TOLERANCE,
+        "the warning line has to be reachable, or nothing is ever said"
+    );
+}
+
+#[test]
 fn compose_masks_never_colour_and_never_hide() {
     // Inside an excluded region the artwork still shows but never picks up a
     // colour, and the region is edged so it cannot be mistaken for a part of the

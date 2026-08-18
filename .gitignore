@@ -15,3 +15,6 @@ compile_commands.json
 
 # packaged output
 dist/
+
+# the portable Qt and its sources, built by packaging/appimage/build-qt.sh
+packaging/appimage/toolchain/

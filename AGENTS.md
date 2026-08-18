@@ -110,6 +110,22 @@ project.
 **Neither route has been run here.** This machine has no Windows and no MinGW Qt;
 what is verified is the core cross-build and its harness under Wine.
 
+## Packaging
+
+```sh
+./packaging/appimage/portable.sh
+```
+
+Needs `podman` and nothing else. It builds Qt, the core and the shell inside a
+pinned `manylinux_2_28` container, so the artefact carries a glibc 2.28 floor
+rather than the development machine's, and bundles Qt's Adwaita window
+decoration, which Qt Base does not ship. `packaging/appimage/README.md` has the
+why; the first run takes about half an hour and later ones a couple of minutes.
+
+**Do not build the image against a locally installed Qt.** That is what it used
+to do, and the resulting image worked on the machine that built it and nowhere
+else, twice, both times silently.
+
 ## Continuous integration
 
 `.github/workflows/ci.yml` runs three jobs. The Linux one runs `check.sh` — the

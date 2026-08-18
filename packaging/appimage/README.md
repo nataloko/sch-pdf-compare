@@ -1,64 +1,86 @@
 # AppImage
 
 ```sh
-cmake -S shell -B shell/build-release -G Ninja -DCMAKE_BUILD_TYPE=Release
-cmake --build shell/build-release
-./packaging/appimage/build.sh
+./packaging/appimage/portable.sh
 ```
 
-The image is written to `dist/sch-pdf-compare-x86_64.AppImage`.
+One command, and it writes `dist/sch-pdf-compare-x86_64.AppImage`. It needs
+`podman` (or `docker`) and nothing else — every compiler, library and tool it
+uses lives inside a container image pinned by digest in `toolchain.env`.
 
-## The tools it needs
+The first run takes about half an hour, almost all of it Qt. Qt lands in
+`packaging/appimage/toolchain/`, which is ignored by git and reused, so later
+runs take a couple of minutes.
 
-`linuxdeploy` and its Qt plugin, **extracted** rather than left as AppImages:
+## Why it builds its own Qt
 
-```sh
-mkdir -p ~/.local/bin && cd ~/.local/bin
-curl -sSLO https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage
-curl -sSLO https://github.com/linuxdeploy/linuxdeploy-plugin-qt/releases/download/continuous/linuxdeploy-plugin-qt-x86_64.AppImage
-chmod +x linuxdeploy*.AppImage
-./linuxdeploy-x86_64.AppImage --appimage-extract && mv squashfs-root linuxdeploy.dir
-./linuxdeploy-plugin-qt-x86_64.AppImage --appimage-extract && mv squashfs-root linuxdeploy-qt.dir
-mkdir -p ~/.local/ldsrc && mv linuxdeploy*.AppImage ~/.local/ldsrc/
-```
+**The floor.** Qt's own Linux binaries, and Ubuntu 24.04's packages, want glibc
+2.39 — so an AppImage built against either runs on Ubuntu 24.04 and little else,
+which is not what the word portable is for. Built on the maintained
+`manylinux_2_28` image, everything in here runs on glibc 2.28 and up: RHEL 8,
+Debian 10, Ubuntu 18.10, and anything since. `build.sh` reads back what the
+packaged binaries actually import and refuses to finish if a new dependency has
+raised the floor.
 
-Extracted, because an AppImage mounts itself with FUSE and a build machine
-frequently has none. The last line matters as much as the rest: `linuxdeploy`
-looks for its plugins in its own directory as well as on `PATH`, so a plugin left
-there as an AppImage is the one it finds, and it fails with exit code 127.
+**The title bar.** GNOME advertises no `zxdg_decoration_manager_v1`, so on a
+GNOME desktop the title bar above this window is drawn by Qt, by whichever
+decoration plugin is installed. Qt Base ships only `bradient`, which draws a
+title bar out of 1995 and handles two gestures — a click on a button and a drag
+to move. It has no clock in it, so it cannot recognise a double click, and
+double-clicking that title bar does nothing. The `adwaita` decoration matches
+the desktop's own and toggles maximised on a double click. It lives in Qt
+Wayland rather than Qt Base, and `QT_FEATURE_wayland_decoration_adwaita` turns
+itself off unless Qt Svg is already installed — which is why `build-qt.sh`
+builds Qt Svg first and checks for `libadwaita.so` afterwards.
 
-## What the image carries
+Both are the same lesson as `../Sterna`, whose scripts this is adapted from.
 
-Qt comes from the machine that built it, so **the image carries that machine's
-glibc floor**. One built on Ubuntu 24.04 needs glibc 2.39 and will not start on
-anything older. Building against an older Qt inside an old container is what
-fixes that, and is a larger job than this script.
+## The pieces
 
-The platform plugins bundled are `xcb`, `wayland` and `offscreen`. Without the
-Wayland one a current desktop goes through XWayland instead.
+| | |
+| --- | --- |
+| `toolchain.env` | The image digest, the Qt version, and how much of the machine the build may take. |
+| `in-container.sh` | Runs a command in that image with the repository mounted. Falls back to the host's `podman` when the development container has none. |
+| `install-build-deps.sh` | The distribution packages and Rust, inside the container. |
+| `build-qt.sh` | Qt Base, Qt Svg, Qt Wayland, from their verified source archives. |
+| `build.sh` | The application, the bundle, the floor check, the image. |
+| `portable.sh` | All four, in one container. |
 
-One more Qt plugin is copied in by hand, and the reason is worth reading before
-anyone removes it. `linuxdeploy-plugin-qt` deploys
-`wayland-graphics-integration-client` only for a Qt Wayland **compositor**, and
-this is a Wayland **client**, so its EGL buffer integration was left out. The
-visible result was not slower drawing — it was **a window with no title bar and
-no close button on GNOME**. Qt draws its own decoration on Wayland, from
-`wayland-decoration-client/libbradient.so`, and with no client buffer
-integration it never asks for one. The proof either way is in the log:
+## Resources
 
-```sh
-QT_QPA_PLATFORM=wayland QT_LOGGING_RULES='qt.qpa.wayland=true' \
-    ./dist/sch-pdf-compare-x86_64.AppImage 2>&1 | grep configure
-```
+`BUILD_JOBS` and `BUILD_CPUS` in `toolchain.env` bound the build to six of them.
+Qt Base is by far the longest compile in this repository and a container given
+every core makes the desktop unusable for the duration. Raise them on a machine
+with nothing else to do.
 
-`xdg_toplevel.configure` reporting the window's own size means no decoration;
-the same size plus a frame — 1400x950 asked for, 1406x983 configured — means
-bradient is drawing one.
+## What is in the image, and what is not
 
-The icon is rendered from `sch-pdf-compare.svg` by `rsvg-convert` at build time
-rather than committed, because `check.sh` refuses any tracked image at all: a
-rendered crop of a customer drawing was committed once as a README illustration,
-and a picture of a drawing is the drawing.
+Bundled: Qt as separate shared libraries, its platform plugins (`xcb`,
+`wayland`, `offscreen`), the Wayland shell integration, the EGL client buffer
+integration, the Adwaita decoration, the CUPS print plugin, and the GLVND
+front-ends (`libEGL.so.1` and friends — the driver-neutral ABI, never a driver).
+
+Not bundled: glibc, libstdc++, and the graphics driver, which come from the
+machine it runs on.
+
+Each of the Wayland plugins is silent when it is missing — the window still
+opens — so `build.sh` checks for each by name and refuses rather than shipping
+an image that is quietly worse:
+
+| missing | what you see |
+| --- | --- |
+| `wayland-shell-integration/libxdg-shell.so` | no window at all, and no error |
+| `wayland-graphics-integration-client/libqt-plugin-wayland-egl.so` | software buffers — and no title bar, because Qt only draws a decoration when a client buffer integration came up |
+| `wayland-decoration-client/libadwaita.so` | `bradient`'s title bar from 1995 |
+| `printsupport/libcupsprintersupport.so` | no printers, and "there are no printers" is a real answer |
+
+## Qt's licence
+
+Qt is LGPLv3 and is dynamically linked, never static. The bundled libraries are
+byte for byte what the build produced — no run paths rewritten — and `AppRun`
+finds them through `LD_LIBRARY_PATH`, so the substitution the licence protects
+actually works. `QT-LGPL-NOTICE.md` says how, and travels inside the image
+along with the licence text and a `BUILD-INFO.txt` naming the exact Qt.
 
 ## Running it
 
@@ -71,3 +93,13 @@ An AppImage mounts itself with FUSE 2. Where that is missing:
 ```sh
 ./dist/sch-pdf-compare-x86_64.AppImage --appimage-extract-and-run earlier.pdf later.pdf
 ```
+
+## Checking the Wayland side without a Wayland desktop
+
+```sh
+QT_QPA_PLATFORM=wayland QT_LOGGING_RULES='qt.qpa.wayland=true' \
+    ./dist/sch-pdf-compare-x86_64.AppImage 2>&1 | grep -E 'buffer integration|configure with'
+```
+
+`xdg_toplevel.configure` reporting the window's own size means no decoration is
+being drawn; the same size plus a frame means one is.

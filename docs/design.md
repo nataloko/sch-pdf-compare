@@ -534,6 +534,41 @@ ABI whose returns are all borrowed, so no allocation crosses it and there is no
 allocator to mismatch. Matching the two halves' toolchains is still the sensible
 default, but the design does not punish getting it wrong.
 
+## The AppImage builds its own Qt
+
+The Linux artefact bundles a Qt built here rather than the distribution's, for
+two reasons that were each found the hard way.
+
+**The floor.** Qt's own Linux binaries, and Ubuntu 24.04's packages, want glibc
+2.39. An AppImage built against either runs on Ubuntu 24.04 and little else,
+which is not what the word portable is for. Built on the maintained
+`manylinux_2_28` image — AlmaLinux 8, pinned by digest — everything in the image
+runs on glibc 2.28 and up. The packaging script reads back every versioned
+symbol the packaged binaries import and refuses to finish if a new dependency
+has raised the floor, because that is exactly the kind of regression that
+otherwise arrives as a bug report from the one person with an older machine.
+
+**The title bar.** GNOME advertises no `zxdg_decoration_manager_v1`, so on a
+GNOME desktop the title bar is drawn by Qt, by whichever decoration plugin is
+installed. Qt Base ships only `bradient`, which handles two gestures — a click
+on a button and a drag to move — and has no clock in it, so it cannot recognise
+a double click. The `adwaita` decoration matches the desktop's own and toggles
+maximised on a double click; it lives in Qt Wayland, and its feature switches
+itself off unless Qt Svg is already installed, so the build order is
+load-bearing and its absence is invisible.
+
+Both of those, and the shape of the scripts, come from `../Sterna`, which had
+already paid for them.
+
+Two things this replaced are worth recording as dead. The image used to be
+built against the development machine's Qt, and **plugins were copied in by
+hand and their run paths patched**; a copy whose run path still pointed at the
+build machine loaded there and nowhere else, and the only symptom was a feature
+quietly missing — twice, once as no window decoration. The bundled libraries are
+now byte for byte the build's own output, with no run path rewritten at all, and
+`AppRun` supplies the search path through `LD_LIBRARY_PATH` instead. That also
+keeps Qt's LGPL substitution seam open, which a rewritten run path does not.
+
 ## What is next
 
 Ranked for the schematic-review workflow.

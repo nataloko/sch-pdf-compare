@@ -36,9 +36,14 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
     dock->setAllowedAreas(Qt::LeftDockWidgetArea | Qt::RightDockWidgetArea);
     m_sheets = new QTreeWidget(dock);
     m_sheets->setObjectName(QStringLiteral("sheets"));
-    m_sheets->setHeaderLabels({tr("Sheet"), tr("Changes")});
+    // Three columns, not two. A count on its own cannot separate a few edits
+    // from a sheet that was redrawn, because the clustering bridges neighbouring
+    // cells on purpose — so how much of the sheet the changes cover goes next to
+    // it, and a sheet that cannot be compared at all says so instead.
+    m_sheets->setHeaderLabels({tr("Sheet"), tr("Changes"), tr("Of the sheet")});
     m_sheets->setRootIsDecorated(false);
-    m_sheets->setColumnWidth(0, 160);
+    m_sheets->setColumnWidth(0, 150);
+    m_sheets->setColumnWidth(1, 70);
     dock->setWidget(m_sheets);
     addDockWidget(Qt::LeftDockWidgetArea, dock);
     connect(m_sheets, &QTreeWidget::itemActivated, this, [this](QTreeWidgetItem *i, int) {
@@ -710,6 +715,20 @@ void MainWindow::rebuildSheetList() {
         }
         item->setText(0, label);
         item->setText(1, QString::number(n));
+        if (m_session->sizeMismatch(p) == 1) {
+            // Ahead of any figure, because no figure for this sheet means
+            // anything: the two revisions are different sizes on paper and the
+            // smaller one was compared against a crop of the larger.
+            item->setText(2, tr("different size"));
+            item->setToolTip(2, tr("The two revisions of this sheet are different sizes on "
+                                   "paper. They were compared at the first document's size, "
+                                   "with the other cropped, so the count is not reliable."));
+        } else {
+            const float covered = m_session->coverage(p);
+            if (covered >= 0.0f) {
+                item->setText(2, tr("%1%").arg(int(covered * 100.0f + 0.5f)));
+            }
+        }
         item->setData(0, Qt::UserRole, p);
     }
 }

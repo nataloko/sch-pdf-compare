@@ -156,6 +156,12 @@ int main(int argc, char **argv) {
     check(waitForSweep(view->session()), QStringLiteral("the sweep finishes"));
     check(sheets->topLevelItemCount() == 6,
           QStringLiteral("every sheet is listed, got %1").arg(sheets->topLevelItemCount()));
+    // The count is next to how much of the sheet it covers, because a count on
+    // its own cannot separate a few edits from a redrawn sheet.
+    check(sheets->headerItem()->text(2).contains(QStringLiteral("sheet")),
+          QStringLiteral("the list has a coverage column"));
+    check(!sheets->topLevelItem(0)->text(2).isEmpty(),
+          QStringLiteral("and fills it in, got '%1'").arg(sheets->topLevelItem(0)->text(2)));
     check(status->text().contains(QStringLiteral("6 sheets changed")),
           QStringLiteral("and the status line says so: '%1'").arg(status->text()));
     shot(&win, QStringLiteral("scanned"));

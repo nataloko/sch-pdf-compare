@@ -27,8 +27,11 @@ customer material. The `samples/` directory stays out of the repository.
 - **Movement between the changes.** `Ctrl+.` goes to the next change and
   `Ctrl+,` goes to the previous change. The movement continues on to the other
   sheets and does not change the zoom.
-- **A list of the sheets that changed**, with a count for each sheet. You can
-  select a sheet in the list to go to it.
+- **A list of the sheets that changed**, with a count for each sheet and how
+  much of the sheet the changes cover. A count alone cannot show the difference
+  between some small changes and a sheet with a new drawing on it. A sheet with a
+  different paper size in the two revisions says that instead of a count.
+  You can select a sheet in the list to go to it.
 - **Regions that the software does not compare.** Hold `Ctrl` and move the
   pointer to make a rectangle around the title block. The software then ignores
   that region on all the sheets. It shows the artwork in the region with less
@@ -40,7 +43,12 @@ customer material. The `samples/` directory stays out of the repository.
   the sheets. The software identifies a sheet that has no pair as an added sheet
   or a removed sheet.
 - **A panel that shows the text differences**, for example `10k → 12k`. This is
-  necessary when the two revisions come from different PDF producers.
+  necessary when the two revisions come from different PDF producers. Text that
+  only moved is counted, not listed, because a sheet with a new layout moves
+  hundreds of labels and those rows conceal the few that read differently.
+- **A choice of the two overlay colours.** The usual pair is red and green. A
+  reader with red-green colour blindness can select blue and orange, because all
+  the information in the overlay is in these two colours.
 - **A background scan** of all the sheets when the software opens the two files.
   Thus you do not wait to know which sheets changed.
 - **A side-by-side view** with the `4` key. The two revisions have one zoom and

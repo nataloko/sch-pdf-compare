@@ -11,6 +11,7 @@ class QLabel;
 class QPainter;
 class QPrinter;
 class QAction;
+class QCheckBox;
 class QTreeWidget;
 class Session;
 
@@ -73,6 +74,7 @@ class MainWindow : public QMainWindow {
     CompareView *m_view = nullptr;
     QTreeWidget *m_sheets = nullptr;
     QTreeWidget *m_text = nullptr;
+    QCheckBox *m_showMoved = nullptr;
     QLabel *m_status = nullptr;
     Session *m_session = nullptr;
     bool m_forTesting = false;

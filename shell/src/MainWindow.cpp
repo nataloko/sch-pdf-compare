@@ -10,6 +10,7 @@
 #include <QFile>
 #include <QFileDialog>
 #include <QFileInfo>
+#include <QCheckBox>
 #include <QLabel>
 #include <QCloseEvent>
 #include <QMenuBar>
@@ -21,6 +22,7 @@
 #include <QMessageBox>
 #include <QStatusBar>
 #include <QTreeWidget>
+#include <QVBoxLayout>
 
 MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
     setWindowTitle(tr("sch-pdf-compare"));
@@ -68,7 +70,24 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
     m_text->setHeaderLabels({tr("Was"), tr("Is now")});
     m_text->setRootIsDecorated(false);
     m_text->setColumnWidth(0, 140);
-    textDock->setWidget(m_text);
+
+    // Text that only moved is kept out of the list by default and counted on the
+    // checkbox instead. A sheet that was re-laid-out moves hundreds of identical
+    // labels, and those rows bury the few that say something different — one
+    // sample sheet has 354 moves against 10 real changes. The count is on show,
+    // so nothing is hidden without saying so, which is the same bargain the
+    // report makes.
+    m_showMoved = new QCheckBox(tr("Include text that only moved"), textDock);
+    m_showMoved->setObjectName(QStringLiteral("showMoved"));
+    connect(m_showMoved, &QCheckBox::toggled, this,
+            [this] { rebuildTextChanges(m_view->currentPage()); });
+
+    auto *textPane = new QWidget(textDock);
+    auto *textLayout = new QVBoxLayout(textPane);
+    textLayout->setContentsMargins(0, 0, 0, 0);
+    textLayout->addWidget(m_text);
+    textLayout->addWidget(m_showMoved);
+    textDock->setWidget(textPane);
     addDockWidget(Qt::RightDockWidgetArea, textDock);
     connect(m_text, &QTreeWidget::itemClicked, this, [this](QTreeWidgetItem *i, int) {
         if (i && m_session) {
@@ -605,7 +624,15 @@ void MainWindow::rebuildTextChanges(int page) {
     if (!m_session || page < 1) {
         return;
     }
+    const bool showMoved = m_showMoved->isChecked();
+    int moved = 0;
     for (const Session::TextChange &c : m_session->textChanges(page)) {
+        if (c.kind == SC_TEXT_CHANGE_KIND_MOVED) {
+            moved++;
+            if (!showMoved) {
+                continue;
+            }
+        }
         auto *item = new QTreeWidgetItem(m_text);
         switch (c.kind) {
         case SC_TEXT_CHANGE_KIND_CHANGED:
@@ -627,6 +654,10 @@ void MainWindow::rebuildTextChanges(int page) {
         }
         item->setData(0, Qt::UserRole, c.rect);
     }
+    m_showMoved->setText(moved == 1 ? tr("Include the 1 piece of text that only moved")
+                                    : tr("Include the %1 pieces of text that only moved")
+                                          .arg(moved));
+    m_showMoved->setEnabled(moved > 0);
 }
 
 void MainWindow::onRegionSelected(int page, const QRectF &r) {

@@ -21,10 +21,12 @@
 #include <QJsonObject>
 #include <QFile>
 #include <QPrinter>
+#include <QCheckBox>
 #include <QPushButton>
 #include <QFileInfo>
 #include <QFile>
 #include <QPrinter>
+#include <QCheckBox>
 #include <QPushButton>
 #include <QFileInfo>
 #include <QLabel>
@@ -253,6 +255,22 @@ int main(int argc, char **argv) {
         }
     }
     check(renamed, QStringLiteral("and it spells out the rename"));
+
+    // Text that only moved is counted rather than listed, so the few rows that
+    // say something different are not buried under hundreds that do not.
+    auto *showMoved = win.findChild<QCheckBox *>(QStringLiteral("showMoved"));
+    check(showMoved != nullptr, QStringLiteral("there is a control for moved text"));
+    check(!showMoved->isChecked(), QStringLiteral("moved text is out of the list by default"));
+    check(showMoved->text().contains(QStringLiteral("moved")),
+          QStringLiteral("and the control says how many there are: '%1'").arg(showMoved->text()));
+    const int listed = textList->topLevelItemCount();
+    showMoved->setChecked(true);
+    QTest::qWait(20);
+    check(textList->topLevelItemCount() >= listed,
+          QStringLiteral("turning them on can only add rows"));
+    showMoved->setChecked(false);
+    QTest::qWait(20);
+    check(textList->topLevelItemCount() == listed, QStringLiteral("and turning them off restores"));
     shot(&win, QStringLiteral("text-changes"));
 
     // The report is the thing that leaves the application. Written from what

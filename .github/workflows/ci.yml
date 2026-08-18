@@ -144,6 +144,12 @@ jobs:
     container: registry.fedoraproject.org/fedora:43
     timeout-minutes: 30
     steps:
+      # Before the checkout, because the checkout action wants git and the
+      # Fedora image has none: without this it falls back to downloading a
+      # tarball through the API, which works until it does not.
+      - name: What the actions themselves need
+        run: dnf -y install --setopt=install_weak_deps=False git tar
+
       - uses: actions/checkout@v5
 
       - name: Install the cross toolchain, Qt and NSIS

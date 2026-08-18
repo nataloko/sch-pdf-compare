@@ -711,6 +711,15 @@ and reported that it started. A verification step that cannot tell "it worked"
 from "it did not happen" is worse than none, so it now stops when there is
 nothing installed.
 
+One thing this opened up and left open. The shell's own test binaries
+cross-build as well, so the window test can be run against the DLL set the
+installer ships. It gets through everything except the three assertions about
+**saving settings** — the file is not written and its directory is never made —
+while the same test passes natively on the CI Windows runner. So it is a
+difference between Wine and Windows, or between the MinGW build and the MSVC
+one, and the installer ships the MinGW build. Worth knowing which, and not
+known yet; recorded rather than guessed at.
+
 The DLL set is closed out of the import tables rather than listed, since Qt's
 own deployment tool is a Windows program and cannot be run here. What decides
 "ours to ship" against "Windows'" is whether the MinGW sysroot has the file.
@@ -759,7 +768,13 @@ Ranked for the schematic-review workflow.
    Wine. The shell has never been built on Windows here, and CI now attempts it
    on a Windows runner with the official Qt — until that job has been seen green,
    "the CMake handles it" is still an assertion. After that, an installer.
-2. **Estimate the transform between two sheets** — one item, not two. Alignment
+2. **Settings on the MinGW build.** The window test, cross-built and run under
+   Wine, fails only its three assertions about saving settings, while the same
+   test passes on the native Windows runner. Either Wine is the difference or
+   the MinGW build is — and the installer ships the MinGW build, so this is
+   worth an answer before anyone relies on the excluded regions surviving a
+   session on Windows.
+3. **Estimate the transform between two sheets** — one item, not two. Alignment
    and scaling are the same question, and one estimator covers both and is the
    identity when nothing needs correcting.
 

@@ -104,6 +104,28 @@ a missing plugin would be invisible until somebody printed.
   instead, and reported that it started. It now stops when there is nothing
   installed.
 
+## What running the tests under Wine did and did not settle
+
+The shell's own binaries cross-build too, so `view_test.exe` — the window
+driven the way a reader drives it — can be run against the same DLL set the
+installer ships. It needs `Qt6Test.dll` copied in beside it, which the
+installer has no reason to carry.
+
+It gets through everything except the last three assertions, which are the ones
+about **saving settings**: after a normal window closes, `settings.json` is not
+there, and the directory it lives in was never made. Everything else — opening
+the pair, the sweep, the views, the tolerance, the fade, one sheet at a time,
+excluding a region, printing to a PDF and reading it back — behaves as it does
+on Linux.
+
+That failure is not evidence of a defect on Windows. The CI Windows job runs
+this same test natively, with MSVC and the official Qt, and is green, and the
+assertions are not guarded by anything platform-specific. What is left
+unresolved is whether Wine is the difference or the MinGW build is — the
+installer ships the MinGW one, so it is worth knowing, and it is not known yet.
+Until it is, this run is a smoke test and not a gate: `verify.sh` checks what
+Wine answers reliably, which is whether the program starts at all.
+
 ## The stub is amd64, which is not the convention
 
 An x86 stub runs on any Windows and is what nearly every installer uses,

@@ -100,17 +100,19 @@ int main(int argc, char **argv) {
           QStringLiteral("with nothing open it says so"));
     shot(&win, QStringLiteral("empty"));
 
-    const QString a = sample(QStringLiteral("SET-ONE - EXAMPLE DIGITAL REV-P1.pdf"));
-    const QString b = sample(QStringLiteral("SET-ONE - EXAMPLE DIGITAL REV-P2.pdf"));
-    if (a.isEmpty() || b.isEmpty()) {
-        printf("view: ok (no samples; opened-document checks skipped)\n");
-        return failures == 0 ? 0 : 1;
-    }
+    // Written into the build tree by `gen-fixtures`, so everything below runs
+    // on a clone with no customer drawings in it. Three sheets: the later
+    // revision changes one component value on sheet 1 and the revision letter
+    // in every title block.
+    const QString a = QStringLiteral(SC_FIXTURE_DIR "/a.pdf");
+    const QString b = QStringLiteral(SC_FIXTURE_DIR "/b.pdf");
+    check(QFileInfo::exists(a) && QFileInfo::exists(b),
+          QStringLiteral("the fixture documents were written"));
 
     check(win.openPair(a, b), QStringLiteral("the pair opens"));
     QTest::qWait(50);
-    check(status->text().contains(QStringLiteral("of 21")),
-          QStringLiteral("21 virtual sheets: '%1'").arg(status->text()));
+    check(status->text().contains(QStringLiteral("of 6")),
+          QStringLiteral("6 virtual sheets: '%1'").arg(status->text()));
     check(status->text().contains(QStringLiteral("Overlay")),
           QStringLiteral("overlay is the default view"));
     shot(&win, QStringLiteral("opened"));
@@ -122,9 +124,9 @@ int main(int argc, char **argv) {
     check(view->session()->sweepStatus().running || view->session()->sweepStatus().finished,
           QStringLiteral("opening a pair starts the sweep"));
     check(waitForSweep(view->session()), QStringLiteral("the sweep finishes"));
-    check(sheets->topLevelItemCount() == 21,
+    check(sheets->topLevelItemCount() == 6,
           QStringLiteral("every sheet is listed, got %1").arg(sheets->topLevelItemCount()));
-    check(status->text().contains(QStringLiteral("21 sheets changed")),
+    check(status->text().contains(QStringLiteral("6 sheets changed")),
           QStringLiteral("and the status line says so: '%1'").arg(status->text()));
     shot(&win, QStringLiteral("scanned"));
 
@@ -166,7 +168,7 @@ int main(int argc, char **argv) {
     // Accepting it has to take sheets off the list, and say so.
     win.applySuggestions();
     check(waitForSweep(s), QStringLiteral("the sweep runs again after excluding"));
-    check(sheets->topLevelItemCount() < 21,
+    check(sheets->topLevelItemCount() < 6,
           QStringLiteral("excluding the title block clears sheets, %1 left")
               .arg(sheets->topLevelItemCount()));
     check(status->text().contains(QStringLiteral("excluded")),
@@ -190,7 +192,7 @@ int main(int argc, char **argv) {
     win.findChild<QAction *>(QStringLiteral("autoMatch"))->trigger();
     QTest::qWait(50);
     check(s->pairingIsAutomatic(), QStringLiteral("the pairing is a content match"));
-    check(s->pair(7).first == 7 && s->pair(7).second == 7,
+    check(s->pair(2).first == 2 && s->pair(2).second == 2,
           QStringLiteral("and these sets match one to one"));
     check(status->text().contains(QStringLiteral("matched by content")),
           QStringLiteral("and the status line says which pairing is in force: '%1'")
@@ -203,10 +205,10 @@ int main(int argc, char **argv) {
     // actually hunting for and cannot see in a red blob.
     auto *textList = win.findChild<QTreeWidget *>(QStringLiteral("textChanges"));
     check(textList != nullptr, QStringLiteral("the window has a text panel"));
-    view->goToPage(2);
+    view->goToPage(1);
     QTest::qWait(50);
     check(textList->topLevelItemCount() > 0,
-          QStringLiteral("sheet 2 has text changes, got %1").arg(textList->topLevelItemCount()));
+          QStringLiteral("sheet 1 has text changes, got %1").arg(textList->topLevelItemCount()));
     bool renamed = false;
     for (int i = 0; i < textList->topLevelItemCount(); i++) {
         if (textList->topLevelItem(i)->text(0) == QLatin1String("NET_ALPHA") &&
@@ -214,7 +216,7 @@ int main(int argc, char **argv) {
             renamed = true;
         }
     }
-    check(renamed, QStringLiteral("and it spells out the net rename"));
+    check(renamed, QStringLiteral("and it spells out the rename"));
     shot(&win, QStringLiteral("text-changes"));
 
     // The report is the thing that leaves the application. Written from what
@@ -223,7 +225,7 @@ int main(int argc, char **argv) {
     check(md.contains(QStringLiteral("# What changed")), QStringLiteral("the report has a title"));
     check(md.contains(QStringLiteral("`NET_ALPHA`")),
           QStringLiteral("and carries the net renames into it"));
-    check(md.contains(QStringLiteral("## Sheet 2")), QStringLiteral("sheet by sheet"));
+    check(md.contains(QStringLiteral("## Sheet 1")), QStringLiteral("sheet by sheet"));
     if (!writeDir.isEmpty()) {
         QFile out(QDir(writeDir).filePath(QStringLiteral("report.md")));
         if (out.open(QIODevice::WriteOnly | QIODevice::Text)) {
@@ -329,6 +331,31 @@ int main(int argc, char **argv) {
         again.close();
     }
     QDir(cfg).removeRecursively();
+
+    // And the real drawing sets, when this machine has them. Everything above
+    // has already run; this is the check that it also holds at 21 sheets of
+    // dense schematic rather than 3 sheets of fixture.
+    const QString realA = sample(QStringLiteral("SET-ONE - EXAMPLE DIGITAL REV-P1.pdf"));
+    const QString realB = sample(QStringLiteral("SET-ONE - EXAMPLE DIGITAL REV-P2.pdf"));
+    if (!realA.isEmpty() && !realB.isEmpty()) {
+        MainWindow real;
+        real.setForTesting(true);
+        real.resize(1400, 950);
+        real.show();
+        check(real.openPair(realA, realB), QStringLiteral("the real pair opens"));
+        auto *rv = real.findChild<CompareView *>();
+        auto *rs = real.findChild<QTreeWidget *>(QStringLiteral("sheets"));
+        check(waitForSweep(rv->session()), QStringLiteral("its sweep finishes"));
+        check(rs->topLevelItemCount() == 21,
+              QStringLiteral("all 21 sheets are listed, got %1").arg(rs->topLevelItemCount()));
+        const QString rmd = rv->session()->report();
+        check(rmd.contains(QStringLiteral("`NET_ALPHA`")),
+              QStringLiteral("and the report carries the real net renames"));
+        shot(&real, QStringLiteral("real-set"));
+        real.close();
+    } else {
+        printf("view: (samples absent; the real-set pass was skipped)\n");
+    }
 
     if (failures == 0) {
         printf("view: ok\n");

@@ -25,10 +25,51 @@ pub struct Document {
     page_count: i32,
 }
 
+/// Written out rather than derived: MuPDF's own handle has no `Debug`, and the
+/// only thing worth printing about an open document is how big it is.
+impl std::fmt::Debug for Document {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Document")
+            .field("page_count", &self.page_count)
+            .finish()
+    }
+}
+
 impl Document {
+    /// Opens a document, and refuses the things that would otherwise look like
+    /// a successful comparison of nothing.
     pub fn open(path: &str) -> Result<Self> {
-        let doc = mupdf::Document::open(path).map_err(|e| Error::Io(e.to_string()))?;
-        let page_count = doc.page_count()?;
+        let name = file_name(path);
+        // Asked before MuPDF gets a chance to call a missing file and an
+        // unreadable one the same thing. Its message for both is "no objects
+        // found", which tells a reader nothing about which it was.
+        match std::fs::metadata(path) {
+            Ok(m) if m.is_dir() => {
+                return Err(Error::Io(format!("{name} is a folder, not a file.")))
+            }
+            Ok(_) => {}
+            // The errno in std's own message ("(os error 2)") is for a log, not
+            // for the person who picked the wrong file.
+            Err(e) => {
+                let why = match e.kind() {
+                    std::io::ErrorKind::NotFound => "there is no such file".to_string(),
+                    std::io::ErrorKind::PermissionDenied => "permission denied".to_string(),
+                    _ => e.to_string(),
+                };
+                return Err(Error::Io(format!("Cannot open {name}: {why}.")));
+            }
+        }
+
+        let doc = mupdf::Document::open(path).map_err(|_| Error::Format(name.clone()))?;
+        // A drawing that arrived from outside is quite often protected. Saying
+        // so beats rendering twenty-one blank sheets.
+        if doc.needs_password().unwrap_or(false) {
+            return Err(Error::Locked(name));
+        }
+        let page_count = doc.page_count().map_err(|_| Error::Format(name.clone()))?;
+        if page_count < 1 {
+            return Err(Error::Empty(name));
+        }
         Ok(Self { doc, page_count })
     }
 
@@ -208,6 +249,15 @@ impl Raster {
     pub fn samples(&self) -> &[u8] {
         self.pixmap.samples()
     }
+}
+
+/// The last component of a path, for a message that has to name a file without
+/// putting a whole directory in front of a person.
+fn file_name(path: &str) -> String {
+    std::path::Path::new(path)
+        .file_name()
+        .map(|n| n.to_string_lossy().into_owned())
+        .unwrap_or_else(|| path.to_owned())
 }
 
 #[cfg(test)]

@@ -129,3 +129,145 @@ fn refuses_a_sheet_that_is_not_there() {
 fn refuses_a_file_that_is_not_a_document() {
     assert!(Document::open("/definitely/not/here.pdf").is_err());
 }
+
+// --- awkward files -------------------------------------------------------
+//
+// These need no `samples/`: the fixtures are written by the test. A drawing
+// arriving from outside is quite often protected, truncated by a half-finished
+// download, or simply the wrong file, and each of those has to say which.
+
+fn scratch(name: &str) -> PathBuf {
+    let p = std::env::temp_dir().join(format!("sch-render-test-{name}.pdf"));
+    let _ = std::fs::remove_file(&p);
+    p
+}
+
+#[test]
+fn a_generated_fixture_opens_and_reads_back() {
+    let p = scratch("basic");
+    sc_fixture::write(
+        &p,
+        &[
+            sc_fixture::Sheet::a4_landscape()
+                .text(100.0, 500.0, "NET_RESET#")
+                .line(0.0, 0.0, 100.0, 100.0),
+            sc_fixture::Sheet::a4_landscape().text(120.0, 480.0, "BUS_MOSI"),
+        ],
+    )
+    .expect("writes");
+
+    let doc = Document::open(&p.to_string_lossy()).expect("opens");
+    assert_eq!(doc.page_count(), 2);
+    let (w, h) = doc.page_size(1).expect("has a sheet 1");
+    assert!(w > h, "landscape, like a schematic: {w}x{h}");
+    assert!(doc.page_text(1).expect("has text").contains("NET_RESET#"));
+    assert!(doc.page_text(2).expect("has text").contains("BUS_MOSI"));
+
+    // The words come back where they were put. PDF user space has its origin at
+    // the bottom left and everything else here counts from the top, so this is
+    // also the check that the flip is right.
+    let words = doc.page_words(1).expect("has words");
+    let w0 = words
+        .iter()
+        .find(|w| w.text == "NET_RESET#")
+        .expect("the word is there");
+    assert!((w0.rect.x - 100.0).abs() < 2.0, "x is {}", w0.rect.x);
+    assert!(
+        (w0.rect.y - (595.0 - 500.0 - 10.0)).abs() < 4.0,
+        "y is {}",
+        w0.rect.y
+    );
+    let _ = std::fs::remove_file(&p);
+}
+
+#[test]
+fn a_file_that_is_not_a_pdf_says_so_and_names_itself() {
+    let p = scratch("garbage");
+    std::fs::write(&p, b"this is plainly not a PDF at all").expect("writes");
+    let e = Document::open(&p.to_string_lossy()).expect_err("refused");
+    assert!(matches!(e, Error::Format(_)));
+    let said = e.to_string();
+    assert!(said.contains("garbage"), "names the file: {said}");
+    assert!(
+        !said.contains("code:"),
+        "no MuPDF error number in front of a person: {said}"
+    );
+    let _ = std::fs::remove_file(&p);
+}
+
+#[test]
+fn a_document_with_no_pages_is_refused_rather_than_compared() {
+    // MuPDF opens a badly damaged file, rebuilds what it can and hands back
+    // nothing. Without this check that reads as a comparison of two empty
+    // documents — a blank window and no explanation.
+    let p = scratch("truncated");
+    let full = scratch("truncated-source");
+    sc_fixture::write(
+        &full,
+        &[sc_fixture::Sheet::a4_landscape().text(10.0, 10.0, "SOMETHING")],
+    )
+    .expect("writes");
+    let data = std::fs::read(&full).expect("reads");
+    std::fs::write(&p, &data[..data.len() / 3]).expect("writes");
+
+    match Document::open(&p.to_string_lossy()) {
+        Err(Error::Empty(_)) | Err(Error::Format(_)) => {}
+        Err(other) => panic!("wrong complaint: {other}"),
+        Ok(d) => panic!(
+            "opened a third of a file and found {} pages",
+            d.page_count()
+        ),
+    }
+    let _ = std::fs::remove_file(&p);
+    let _ = std::fs::remove_file(&full);
+}
+
+#[test]
+fn a_missing_file_and_a_folder_are_told_apart() {
+    let e = Document::open("/definitely/not/here/at/all.pdf").expect_err("refused");
+    assert!(matches!(e, Error::Io(_)));
+    assert!(e.to_string().contains("no such file"), "{e}");
+    assert!(
+        !e.to_string().contains("os error"),
+        "the errno is for a log: {e}"
+    );
+
+    let e = Document::open(&std::env::temp_dir().to_string_lossy()).expect_err("refused");
+    assert!(e.to_string().contains("folder"), "{e}");
+}
+
+#[test]
+fn a_password_protected_drawing_says_so() {
+    // Needs qpdf to make one; skipped where it is not installed rather than
+    // carrying an encrypted binary in the repository.
+    let src = scratch("locked-source");
+    let out = scratch("locked");
+    sc_fixture::write(
+        &src,
+        &[sc_fixture::Sheet::a4_landscape().text(50.0, 50.0, "SECRET_NET")],
+    )
+    .expect("writes");
+    let made = std::process::Command::new("qpdf")
+        .args([
+            "--encrypt",
+            "--user-password=secret",
+            "--owner-password=owner",
+            "--bits=256",
+            "--",
+        ])
+        .arg(&src)
+        .arg(&out)
+        .status();
+    let Ok(status) = made else { return };
+    if !status.success() {
+        return;
+    }
+
+    let e = Document::open(&out.to_string_lossy()).expect_err("refused");
+    assert!(matches!(e, Error::Locked(_)), "got {e}");
+    assert!(e.to_string().contains("password"), "{e}");
+    // And it says what to do about it, since we cannot ask for the password.
+    assert!(e.to_string().contains("without the password"), "{e}");
+    let _ = std::fs::remove_file(&src);
+    let _ = std::fs::remove_file(&out);
+}

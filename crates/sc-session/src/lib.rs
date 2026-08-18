@@ -10,6 +10,8 @@
 // `unsafe` block anywhere but that module is a compile error.
 #![deny(unsafe_code)]
 
+#[cfg(test)]
+mod fixture_tests;
 mod matching;
 mod report;
 mod scan;

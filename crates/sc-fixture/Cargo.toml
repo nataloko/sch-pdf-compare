@@ -1,0 +1,14 @@
+[package]
+name = "sc-fixture"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+# A dev-dependency only. Nothing shipped links this.
+
+# Named for what it does rather than for its crate: CMake runs it by name and
+# `sc-fixture` would read as the library.
+[[bin]]
+name = "gen-fixtures"
+path = "src/main.rs"

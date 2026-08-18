@@ -33,6 +33,10 @@ pub const SC_ERR_IO: ScStatus = -2;
 pub const SC_ERR_FORMAT: ScStatus = -3;
 pub const SC_ERR_NO_PAGE: ScStatus = -4;
 pub const SC_ERR_GEOMETRY: ScStatus = -5;
+/// The file is a PDF, but encrypted and we have no password for it.
+pub const SC_ERR_LOCKED: ScStatus = -6;
+/// The file opened and has no pages — usually truncated or half-downloaded.
+pub const SC_ERR_EMPTY: ScStatus = -7;
 
 thread_local! {
     /// The last failure's sentence, per thread.
@@ -52,6 +56,8 @@ fn status_of(e: &sc_render::Error) -> ScStatus {
     match e {
         sc_render::Error::Io(_) => SC_ERR_IO,
         sc_render::Error::Format(_) => SC_ERR_FORMAT,
+        sc_render::Error::Locked(_) => SC_ERR_LOCKED,
+        sc_render::Error::Empty(_) => SC_ERR_EMPTY,
         sc_render::Error::NoSuchPage(_) => SC_ERR_NO_PAGE,
         sc_render::Error::BadGeometry => SC_ERR_GEOMETRY,
         sc_render::Error::Mupdf(_) => SC_ERR_FORMAT,

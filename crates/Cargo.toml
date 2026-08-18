@@ -13,6 +13,7 @@ members = [
     "sc-match",    # pairing two documents' sheets
     "sc-session",  # the model: a document pair and everything asked about it
     "sc-ffi",      # the C ABI, and the only crate the shell links
+    "sc-fixture",  # minimal PDFs for tests; a dev-dependency, nothing ships it
 ]
 
 [workspace.package]
@@ -26,3 +27,4 @@ sc-diff = { path = "sc-diff" }
 sc-render = { path = "sc-render" }
 sc-match = { path = "sc-match" }
 sc-session = { path = "sc-session" }
+sc-fixture = { path = "sc-fixture" }

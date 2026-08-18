@@ -26,13 +26,28 @@ if(UNIX)
         BUILD_RPATH "${SC_CARGO_OUT}")
 endif()
 
+# The documents the window test compares. Written by a Rust helper into the
+# build tree, so the window's own behaviour is exercised on a clone that has no
+# customer drawings in it. The real sets, when present, are checked as well.
+set(SC_FIXTURE_DIR "${CMAKE_BINARY_DIR}/fixtures")
+add_custom_target(sc_fixtures ALL
+    BYPRODUCTS "${SC_FIXTURE_DIR}/a.pdf" "${SC_FIXTURE_DIR}/b.pdf"
+    COMMAND ${CMAKE_COMMAND} -E env "CARGO_TARGET_DIR=${SC_CARGO_DIR}"
+            "${CARGO_EXECUTABLE}" run -q -p sc-fixture --bin gen-fixtures
+            ${SC_CARGO_FLAGS} ${SC_CARGO_TARGET_FLAGS} -- "${SC_FIXTURE_DIR}"
+    WORKING_DIRECTORY "${SC_CORE_ROOT}"
+    COMMENT "writing the window test's fixture documents"
+    USES_TERMINAL VERBATIM)
+
 # The window, driven the way a reader drives it. Qt's offscreen platform, so no
 # X server and no window manager are involved.
 add_executable(view_test view_test.cpp)
 target_link_libraries(view_test PRIVATE sc_shell Qt6::Test)
 target_compile_definitions(view_test PRIVATE
-    SC_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
+    SC_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}"
+    SC_FIXTURE_DIR="${SC_FIXTURE_DIR}")
 target_compile_options(view_test PRIVATE ${SC_WARNINGS})
+add_dependencies(view_test sc_fixtures)
 add_test(NAME view COMMAND view_test)
 set_tests_properties(view PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
 if(UNIX)

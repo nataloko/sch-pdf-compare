@@ -167,6 +167,16 @@ typedef struct {
 
 #define SC_ERR_GEOMETRY -5
 
+/**
+ * The file is a PDF, but encrypted and we have no password for it.
+ */
+#define SC_ERR_LOCKED -6
+
+/**
+ * The file opened and has no pages — usually truncated or half-downloaded.
+ */
+#define SC_ERR_EMPTY -7
+
 #ifdef __cplusplus
 extern "C" {
 #endif // __cplusplus

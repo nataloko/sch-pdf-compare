@@ -15,3 +15,6 @@ sc-diff.workspace = true
 # names Helvetica without embedding it is common enough, and without the base14
 # set MuPDF has nothing to draw its text with.
 mupdf = { version = "0.8.0", default-features = false, features = ["base14-fonts"] }
+
+[dev-dependencies]
+sc-fixture.workspace = true

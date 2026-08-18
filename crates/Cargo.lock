@@ -455,6 +455,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "sc-fixture"
+version = "0.1.0"
+
+[[package]]
 name = "sc-match"
 version = "0.1.0"
 dependencies = [
@@ -467,6 +471,7 @@ version = "0.1.0"
 dependencies = [
  "mupdf",
  "sc-diff",
+ "sc-fixture",
 ]
 
 [[package]]
@@ -475,6 +480,7 @@ version = "0.1.0"
 dependencies = [
  "libc",
  "sc-diff",
+ "sc-fixture",
  "sc-match",
  "sc-render",
  "serde",

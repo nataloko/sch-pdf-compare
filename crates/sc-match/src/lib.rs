@@ -73,10 +73,10 @@ impl Signature {
 
 /// Below this a pair is worse than leaving both sheets unmatched.
 ///
-/// The runner-up on the sample sets scores up to 0.63 — sheets 10 to 17 of
-/// SET-ONE are near-duplicate channel sheets — so this cannot be set by "the best
-/// score wins". It is the alignment below that separates them, using the order
-/// the sheets come in.
+/// The runner-up on the sample sets scores up to 0.63: one of them repeats a
+/// channel sheet eight times over, differing only in a number. So this cannot be
+/// set by "the best score wins". It is the alignment below that separates them,
+/// using the order the sheets come in.
 const MATCH_FLOOR: f32 = 0.35;
 
 /// What leaving a sheet unmatched costs.

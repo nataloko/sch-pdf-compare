@@ -33,13 +33,23 @@ into `crates/sc-ffi/include/schcompare.h` and committed.
    a status to poll. No callbacks fired from a worker thread.
 5. **No idle timer in the event loop.** Qt watches the core's wakeup handle with
    `QSocketNotifier` / `QWinEventNotifier` and pumps only when it fires.
-6. **Customer material never enters the repository.** `samples/` is gitignored
-   and stays that way — but the rule is wider than that directory, and it has
-   already been broken once: a *rendered crop* of a customer schematic was
-   committed to `docs/` as a README illustration and had to be taken out again.
-   A picture of a drawing is the drawing. No screenshots, no crops, no test
-   fixtures derived from a real set. `git ls-files | grep -iE '\.png$|\.pdf$'`
-   should stay empty of anything that came from `samples/`.
+6. **Customer material never enters the repository — and this one is public.**
+   `samples/` is gitignored and stays that way, but the rule is wider than that
+   directory in two ways, and both were broken once before being caught:
+
+   - A *rendered crop* of a schematic was committed to `docs/` as a README
+     illustration. A picture of a drawing is the drawing.
+   - The tests and docs **named** the customer's board codes and quoted net
+     names out of their schematic. A public repository holding those is the same
+     leak as holding the files.
+
+   So the sample sets are addressed by the role they play — `same_producer`,
+   `cross_producer`, `rotated`, `large`, `identical` — and their filenames and
+   expected numbers live in `samples/sets.json`, ignored along with the drawings.
+   Without it those tests skip, and the `sc-fixture` tests cover the same ground
+   on documents the test wrote itself. `check.sh` enforces both halves, taking
+   the words to look for from whatever is in `samples/` rather than from a list
+   in the repository.
 7. Comments explain *why*, including the alternative that was tried and failed.
    `docs/design.md` holds the decisions, `docs/history.md` the log.
 

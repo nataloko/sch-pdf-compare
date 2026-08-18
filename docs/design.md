@@ -53,13 +53,13 @@ where line art lives.
 **Tolerance mattered; alignment did not.** The brief expected shifted pages.
 Measuring the real sample sets found every revision pair already pixel-
 registered, and what they needed instead was slack. Re-measured here through the
-shipping algorithm — 100 dpi scan, 8 px cells, sheet 2 of SET-ONE:
+shipping algorithm — 100 dpi scan, 8 px cells, one sheet of the 21-sheet set:
 
 | Pair | tol 0 | tol 1 | tol 2 |
 | --- | --- | --- | --- |
-| REV-P1 vs REV-P2, same producer | 10 regions / 2198 px | **6 / 1443** | 4 / 1251 |
-| REV-P2 vs REV-P3, PDFCreator vs MS Print to PDF | 29 / 7809 px | **26 / 1969** | 8 / 1609 |
-| REV-P1 vs itself | 0 | 0 | 0 |
+| consecutive revisions, same producer | 10 regions / 2198 px | **6 / 1443** | 4 / 1251 |
+| two revisions apart, different producer | 29 / 7809 px | **26 / 1969** | 8 / 1609 |
+| a revision against itself | 0 | 0 | 0 |
 
 Probing every whole-pixel offset within ±3 device pixels confirms the fork's
 conclusion and sharpens it. For the same-producer pair there is a clear basin —
@@ -69,8 +69,9 @@ cross-producer pair **there is no minimum at all**: the surface is flat at 14–
 regions everywhere in the probe. That residue is not a shifted page and no
 alignment will remove it.
 
-What it is: REV-P3 draws its text with CID TrueType fonts where the others use
-subset Type1C, so the glyph shapes differ slightly everywhere there is text.
+What it is: the later of those two draws its text with CID TrueType fonts where
+the earlier uses subset Type1C, so the glyph shapes differ slightly everywhere
+there is text.
 Tolerance still earns its place — it takes the unmatched ink from 7809 px to
 1969, a 75% cut — but it cannot make two typefaces into one.
 
@@ -84,7 +85,7 @@ identical twin in the other revision and the furthest any of them moved is
 **0.985 pt** — so matching text by position is not merely possible across
 producers, it is easy. The two comparisons answer different questions and the
 tool shows both: only the pixels find a re-routed wire that carries no text, and
-only the words can say `NET_ALPHA → NET_BRAVO`.
+only the words can say that a run of serial nets was renumbered.
 
 **Ignored regions are explicit, not inferred.** A drawing set shares a title
 block, so a changed date colours all 85 sheets. Automatic repeat detection finds
@@ -218,6 +219,14 @@ The real sets carry most of this project's evidence and none of them can be
 committed. Left there, a clone would build and pass and test almost nothing above
 the pixel kernel.
 
+The drawings are also not *named*: the repository is public, and a customer's
+board codes and net names are as much theirs as the files. The tests address the
+sample sets by the role each plays and read the filenames — and the numbers each
+should produce — from `samples/sets.json`, which is ignored along with the
+drawings. `check.sh` fails if any word from a sample filename appears in a
+tracked file, taking those words from the directory rather than from a list that
+would itself be the leak.
+
 `sc-fixture` writes minimal PDFs by hand — a frame, a title block carrying the
 revision, a few labels — and both the Rust integration tests and the window test
 compare a pair of them. The window test's fixtures are written into the build
@@ -249,10 +258,11 @@ on one sheet is a constant measured on nothing.**
 Text that merely **moved** is its own kind of change. A sheet that was
 re-laid-out moves dozens of identical labels, and reporting each as one thing
 gone and another arrived doubles the noise and buries the handful that say
-something different — sheet 8 of the sample set goes from 770 rows to 62 once
-moves are counted rather than listed.
+something different — one sheet of the sample set goes from 770 rows to 62 once moves are counted
+rather than listed.
 
-One more trap, met and fixed: a sheet with 47 labels reading `33R` will happily
+One more trap, met and fixed: a sheet with 47 labels reading the same resistor
+value will happily
 match any of them to any other. An early diagnostic searched for the nearest
 identical text anywhere on the sheet and reported a 9 pt median displacement,
 which looked exactly like a 2% horizontal rescale between producers. It was not:

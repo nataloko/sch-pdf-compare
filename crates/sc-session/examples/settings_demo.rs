@@ -5,8 +5,8 @@ use sc_session::Settings;
 fn main() {
     let mut s = Settings::load();
     s.set_ignore_rects(
-        "/drawings/SET-ONE REV-P1.pdf",
-        "/drawings/SET-ONE REV-P2.pdf",
+        "/drawings/example REVA.pdf",
+        "/drawings/example REVB.pdf",
         &[RectF::new(600.0, 570.0, 220.0, 25.0)],
     );
     s.save().expect("saves");

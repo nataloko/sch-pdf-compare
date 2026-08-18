@@ -31,8 +31,8 @@ customer material. `samples/` is gitignored and stays that way.)
   revision inserted a sheet at the front; **Match Sheets by Content** works out
   the pairing from what is written on them, for a set that was reordered.
   Unmatched sheets are marked added or removed.
-- **A text panel** saying what the sheet *reads* differently — `NET_ALPHA →
-  NET_BRAVO`, `10k → 12k` — not only where it looks different. This is what makes
+- **A text panel** saying what the sheet *reads* differently — `10k → 12k`,
+  `NET_A → NET_B` — not only where it looks different. This is what makes
   a comparison across two different PDF producers usable at all: see below.
 - **A background sweep** that scans the whole set the moment it opens, so the
   question "which sheets changed" is answered without waiting.
@@ -52,9 +52,9 @@ customer material. `samples/` is gitignored and stays that way.)
 
 ## Two revisions, two different PDF producers
 
-The awkward case, and the one that drove the design. Sheet 2 of the sample set,
-compared against the revision two later, which went through Microsoft Print to
-PDF where its predecessors went through Ghostscript:
+The awkward case, and the one that drove the design. One sheet of a real drawing
+set, compared against the revision two later — which went through a different
+PDF producer:
 
 | | regions reported |
 | --- | --- |

@@ -16,6 +16,8 @@
 #include <QAction>
 #include <QApplication>
 #include <QDir>
+#include <QJsonDocument>
+#include <QJsonObject>
 #include <QFile>
 #include <QPrinter>
 #include <QFileInfo>
@@ -61,9 +63,34 @@ static bool waitForSweep(Session *s) {
     return false;
 }
 
-static QString sample(const QString &name) {
-    const QString p = QFileInfo(QStringLiteral(SC_SOURCE_DIR "/../../samples/") + name).absoluteFilePath();
+// One side of a named pair from `samples/sets.json`, or empty when the drawings
+// are not on this machine. The sets are addressed by the role they play rather
+// than by name: this repository is public and a customer's board codes are as
+// much theirs as the drawings.
+static QString sample(const QString &set, const QString &side) {
+    const QDir root(QStringLiteral(SC_SOURCE_DIR "/../../samples"));
+    QFile manifest(root.filePath(QStringLiteral("sets.json")));
+    if (!manifest.open(QIODevice::ReadOnly)) {
+        return {};
+    }
+    const QJsonObject all = QJsonDocument::fromJson(manifest.readAll()).object();
+    const QString name = all.value(set).toObject().value(side).toString();
+    if (name.isEmpty()) {
+        return {};
+    }
+    const QString p = QFileInfo(root.filePath(name)).absoluteFilePath();
     return QFileInfo::exists(p) ? p : QString();
+}
+
+/// A number the manifest says this pair should produce, or -1.
+static int expected(const QString &set, const QString &key) {
+    const QDir root(QStringLiteral(SC_SOURCE_DIR "/../../samples"));
+    QFile manifest(root.filePath(QStringLiteral("sets.json")));
+    if (!manifest.open(QIODevice::ReadOnly)) {
+        return -1;
+    }
+    const QJsonObject all = QJsonDocument::fromJson(manifest.readAll()).object();
+    return all.value(set).toObject().value(key).toInt(-1);
 }
 
 int main(int argc, char **argv) {
@@ -335,8 +362,8 @@ int main(int argc, char **argv) {
     // And the real drawing sets, when this machine has them. Everything above
     // has already run; this is the check that it also holds at 21 sheets of
     // dense schematic rather than 3 sheets of fixture.
-    const QString realA = sample(QStringLiteral("SET-ONE - EXAMPLE DIGITAL REV-P1.pdf"));
-    const QString realB = sample(QStringLiteral("SET-ONE - EXAMPLE DIGITAL REV-P2.pdf"));
+    const QString realA = sample(QStringLiteral("same_producer"), QStringLiteral("a"));
+    const QString realB = sample(QStringLiteral("same_producer"), QStringLiteral("b"));
     if (!realA.isEmpty() && !realB.isEmpty()) {
         MainWindow real;
         real.setForTesting(true);
@@ -346,11 +373,14 @@ int main(int argc, char **argv) {
         auto *rv = real.findChild<CompareView *>();
         auto *rs = real.findChild<QTreeWidget *>(QStringLiteral("sheets"));
         check(waitForSweep(rv->session()), QStringLiteral("its sweep finishes"));
-        check(rs->topLevelItemCount() == 21,
-              QStringLiteral("all 21 sheets are listed, got %1").arg(rs->topLevelItemCount()));
+        const int sheets = expected(QStringLiteral("same_producer"), QStringLiteral("sheets"));
+        check(rs->topLevelItemCount() == sheets,
+              QStringLiteral("all %1 sheets are listed, got %2")
+                  .arg(sheets)
+                  .arg(rs->topLevelItemCount()));
         const QString rmd = rv->session()->report();
-        check(rmd.contains(QStringLiteral("`NET_ALPHA`")),
-              QStringLiteral("and the report carries the real net renames"));
+        check(!rmd.isEmpty() && rmd.contains(QStringLiteral("## Sheet")),
+              QStringLiteral("and the report has the real set's sheets in it"));
         shot(&real, QStringLiteral("real-set"));
         real.close();
     } else {

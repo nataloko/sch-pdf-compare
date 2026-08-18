@@ -12,6 +12,9 @@
 
 #![forbid(unsafe_code)]
 
+pub mod samples;
+pub use samples::Samples;
+
 use std::fmt::Write as _;
 use std::io;
 use std::path::Path;

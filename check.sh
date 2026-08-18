@@ -46,11 +46,45 @@ fi
 
 # Customer drawings, and anything rendered from them, must never be tracked.
 if git -C "$root" ls-files | grep -qiE '\.(pdf|png|ppm|jpg)$'; then
-    printf '  FAIL  no customer material tracked\n'
+    printf '  FAIL  no customer files tracked\n'
     git -C "$root" ls-files | grep -iE '\.(pdf|png|ppm|jpg)$' | sed 's/^/        /'
     failed=1
 else
-    printf '  ok    no customer material tracked\n'
+    printf '  ok    no customer files tracked\n'
+fi
+
+# Nor their names. The repository is public, and a customer's board codes are as
+# much theirs as the drawings — so the tests address the sample sets by the role
+# they play and read the filenames from `samples/sets.json`, which is ignored
+# along with them.
+#
+# The words to look for are taken from whatever is in `samples/` right now
+# rather than listed here, because a list of forbidden words in a public
+# repository is the leak it was meant to prevent. Anyone without the drawings
+# simply skips this.
+if [ -d "$root/samples" ]; then
+    words=$(ls "$root/samples" 2>/dev/null | grep -iE '\.pdf$' \
+        | tr -c 'A-Za-z0-9' '\n' \
+        | awk 'length($0) >= 4 && $0 !~ /^[0-9]+$/' \
+        | grep -viE '^(pdf|rev[a-z]?[0-9]*)$' | sort -u)
+    leaked=""
+    for w in $words; do
+        if git -C "$root" grep -qiF -- "$w" 2>/dev/null; then
+            leaked="$leaked $w"
+        fi
+    done
+    if [ -n "$leaked" ]; then
+        printf '  FAIL  no customer names tracked\n'
+        for w in $leaked; do
+            printf '        %s appears in: %s\n' "$w" \
+                "$(git -C "$root" grep -liF -- "$w" | tr '\n' ' ')"
+        done
+        failed=1
+    else
+        printf '  ok    no customer names tracked\n'
+    fi
+else
+    printf '  skip  customer names (no samples/ on this machine)\n'
 fi
 
 if [ "$failed" -ne 0 ]; then

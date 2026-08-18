@@ -9,7 +9,7 @@ fn sigs(pages: &[&str]) -> Vec<Signature> {
 /// Sheets that look like schematic sheets: a few shared frame words and some
 /// net names of their own.
 fn sheet(unique: &str) -> String {
-    format!("EXAMPLE Project Sheet Size Date Rev {unique}")
+    format!("Example Project Sheet Size Date Rev {unique}")
 }
 
 #[test]

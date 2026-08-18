@@ -7,32 +7,29 @@
 // Copyright (c) the sch-pdf-compare authors. AGPL-3.0-or-later; see LICENSE.
 
 use super::*;
-use std::path::PathBuf;
+use sc_fixture::Samples;
 
-fn sample(name: &str) -> Option<String> {
-    let p = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("../../samples")
-        .join(name);
-    p.exists().then(|| p.to_string_lossy().into_owned())
+/// The named pair from `samples/sets.json`, or `None` when the drawings are not
+/// on this machine. The sets are addressed by the role they play rather than by
+/// name — see `sc_fixture::samples` for why.
+fn session(set: &str) -> Option<Session> {
+    let (a, b) = Samples::load()?.both(set)?;
+    Some(Session::open(&a, &b).expect("opens"))
 }
 
-const A10: &str = "SET-ONE - EXAMPLE DIGITAL REV-P1.pdf";
-const B03: &str = "SET-ONE - EXAMPLE DIGITAL REV-P2.pdf";
-const D02: &str = "SET-ONE - EXAMPLE DIGITAL REV-P3.pdf";
-const SECOND_A07: &str = "SET-TWO - EXAMPLE SECOND REV-Q1.pdf";
-const SECOND_B02: &str = "SET-TWO - EXAMPLE SECOND REV-Q2.pdf";
-
-fn session(a: &str, b: &str) -> Option<Session> {
-    let (pa, pb) = (sample(a)?, sample(b)?);
-    Some(Session::open(&pa, &pb).expect("opens"))
+/// A number the manifest says this pair should produce.
+fn expect(set: &str, key: &str) -> Option<i32> {
+    Samples::load()?.number(set, key)
 }
 
 #[test]
 fn a_document_against_itself_has_nothing_to_report() {
     // The strongest invariant in the tool. If this ever fails, every other
     // number here is noise.
-    let Some(s) = session(A10, A10) else { return };
-    assert_eq!(s.page_count(), 21);
+    let (Some(s), Some(n)) = (session("identical"), expect("identical", "sheets")) else {
+        return;
+    };
+    assert_eq!(s.page_count(), n);
     for p in 1..=s.page_count() {
         let r = s.scan_page(p).expect("scans");
         assert!(r.changes.is_empty(), "sheet {p} differs from itself");
@@ -41,12 +38,24 @@ fn a_document_against_itself_has_nothing_to_report() {
 
 #[test]
 fn consecutive_revisions_of_the_same_producer() {
-    let Some(s) = session(A10, B03) else { return };
-    let r = s.scan_page(2).expect("scans");
-    assert_eq!(r.changes.len(), 6, "sheet 2 of REV-P1 vs REV-P2");
+    let Some(s) = session("same_producer") else {
+        return;
+    };
+    let Some(sheet) = expect("same_producer", "probe_sheet") else {
+        return;
+    };
+    let Some(want) = expect("same_producer", "regions_on_probe_sheet") else {
+        return;
+    };
+    let r = s.scan_page(sheet).expect("scans");
+    assert_eq!(
+        r.changes.len() as i32,
+        want,
+        "the probe sheet of the same-producer pair"
+    );
 
-    let mut changed = 0;
-    let mut regions = 0;
+    let mut changed = 0i32;
+    let mut regions = 0usize;
     for p in 1..=s.page_count() {
         let r = s.scan_page(p).expect("scans");
         if !r.changes.is_empty() {
@@ -57,27 +66,42 @@ fn consecutive_revisions_of_the_same_producer() {
     // Every sheet reports something, and that is the point of the excluded
     // regions: the set shares a title block whose revision and date changed, so
     // 21 of 21 sheets are "changed" until the reader says otherwise.
-    assert_eq!((changed, regions), (21, 59));
+    let want_sheets = expect("same_producer", "changed_sheets").unwrap_or(changed);
+    let want_regions = expect("same_producer", "total_regions").unwrap_or(regions as i32);
+    assert_eq!((changed, regions as i32), (want_sheets, want_regions));
 }
 
 #[test]
 fn across_pdf_producers_the_floor_is_rendering_not_alignment() {
-    // REV-P2 came out of Ghostscript, REV-P3 out of Microsoft Print to PDF with
-    // CID TrueType fonts where the others use subset Type1C. The residue is
+    // The two sides of this pair went through different PDF producers, one of
+    // them writing CID TrueType fonts where the other uses subset Type1C. The
+    // residue is
     // glyph rasterisation spread over the whole sheet, not a shifted page:
     // probing every offset in +/-3 device pixels never gets below 14 regions,
     // and there is no minimum to find — the surface is flat. Tolerance is still
     // worth having (it takes the unmatched ink from 7809 px to 1969), but it
     // cannot make two typefaces into one. This is the case the text-level diff
     // exists for.
-    let Some(s) = session(B03, D02) else { return };
-    let r = s.scan_page(2).expect("scans");
-    assert_eq!(r.changes.len(), 26, "sheet 2 of REV-P2 vs REV-P3");
+    let Some(s) = session("cross_producer") else {
+        return;
+    };
+    let Some(sheet) = expect("cross_producer", "probe_sheet") else {
+        return;
+    };
+    let Some(want) = expect("cross_producer", "regions_on_probe_sheet") else {
+        return;
+    };
+    let r = s.scan_page(sheet).expect("scans");
+    assert_eq!(
+        r.changes.len() as i32,
+        want,
+        "the probe sheet of the cross-producer pair"
+    );
 }
 
 #[test]
 fn tolerance_cuts_the_fringe() {
-    let Some(mut s) = session(B03, D02) else {
+    let Some(mut s) = session("cross_producer") else {
         return;
     };
     let mut strict = s.options();
@@ -98,7 +122,7 @@ fn tolerance_cuts_the_fringe() {
 
 #[test]
 fn an_excluded_region_is_counted_never_dropped() {
-    let Some(mut s) = session(A10, B03) else {
+    let Some(mut s) = session("same_producer") else {
         return;
     };
     let before = s.scan_page(2).expect("scans");
@@ -133,7 +157,7 @@ fn an_excluded_region_is_counted_never_dropped() {
 fn an_unmatched_sheet_is_not_an_unchanged_one() {
     // Nudge the pairing so A's sheet 1 has no counterpart. It has to come back
     // as entirely removed, not as a quiet page with nothing on it.
-    let Some(mut s) = session(A10, B03) else {
+    let Some(mut s) = session("same_producer") else {
         return;
     };
     s.set_page_delta(1);
@@ -166,7 +190,9 @@ fn a_tile_reports_the_same_changes_as_the_whole_sheet() {
     // they shift together and the comparison is unaffected — but a byte-for-byte
     // assertion here would be testing MuPDF's scaler, not the margin.
     use sc_render::Tile;
-    let Some(s) = session(A10, B03) else { return };
+    let Some(s) = session("same_producer") else {
+        return;
+    };
     let zoom = 100.0 / 72.0;
     let (w, h) = s.page_device_size(2, zoom).expect("has a sheet 2");
 
@@ -205,7 +231,7 @@ fn a_single_document_view_reproduces_that_document_untouched() {
     // coloured nets, and the drawing's own colour is not the comparison's.
     use sc_diff::ViewMode;
     use sc_render::Tile;
-    let Some(mut s) = session(A10, B03) else {
+    let Some(mut s) = session("same_producer") else {
         return;
     };
     let zoom = 1.0;
@@ -234,7 +260,7 @@ fn a_single_document_view_reproduces_that_document_untouched() {
 fn the_overlay_colours_something_these_revisions_disagree_about() {
     use sc_diff::ViewMode;
     use sc_render::Tile;
-    let Some(mut s) = session(A10, B03) else {
+    let Some(mut s) = session("same_producer") else {
         return;
     };
     let zoom = 1.0;
@@ -258,7 +284,9 @@ fn the_sweep_finishes_and_agrees_with_scanning_by_hand() {
     // The whole point of the sweep is that it is the same answer, arrived at
     // without making the reader wait. If it ever disagrees with `scan_page`,
     // the number in the sidebar is a lie.
-    let Some(s) = session(A10, B03) else { return };
+    let Some(s) = session("same_producer") else {
+        return;
+    };
     let mut sweep = s.start_sweep().expect("the platform gives us a wakeup");
 
     let mut collected: Vec<SheetChanges> = Vec::new();
@@ -302,7 +330,9 @@ fn the_sweep_finishes_and_agrees_with_scanning_by_hand() {
 
 #[test]
 fn a_sweep_can_be_stopped_before_it_finishes() {
-    let Some(s) = session(A10, B03) else { return };
+    let Some(s) = session("same_producer") else {
+        return;
+    };
     let mut sweep = s.start_sweep().expect("starts");
     sweep.stop();
     // `stop` joins, so by the time it returns the thread is gone and nothing is
@@ -314,21 +344,21 @@ fn a_sweep_can_be_stopped_before_it_finishes() {
 fn the_repeat_detector_finds_the_title_block_on_both_sets() {
     // Both sample sets share a title block whose date changed, so both should
     // be offered it — and the offer must land on the bottom-right of the sheet.
-    for (a, b) in [(A10, B03), (SECOND_A07, SECOND_B02)] {
-        let Some(s) = session(a, b) else { return };
+    for set in ["same_producer", "large"] {
+        let Some(s) = session(set) else { return };
         let all: Vec<_> = (1..=s.page_count())
             .map(|p| s.scan_page(p).expect("scans"))
             .collect();
         let offered = suggest_ignores(&all, s.page_count());
         assert!(
             !offered.is_empty(),
-            "{a}: a change on every sheet should be offered"
+            "{set}: a change on every sheet should be offered"
         );
 
         let (w, h) = s.page_size(1).expect("has a sheet 1");
         assert!(
             offered.iter().any(|r| r.x > w * 0.5 && r.y > h * 0.8),
-            "{a}: the offer should be the title block, got {offered:?}"
+            "{set}: the offer should be the title block, got {offered:?}"
         );
 
         // Offered, never applied. Nothing is excluded until the reader says so,
@@ -346,7 +376,9 @@ fn the_repeat_detector_finds_the_title_block_on_both_sets() {
 fn nothing_is_offered_when_nothing_repeats() {
     // A document against itself has no changes at all, so there is nothing to
     // suggest — and a detector that offered something here would be inventing.
-    let Some(s) = session(A10, A10) else { return };
+    let Some(s) = session("identical") else {
+        return;
+    };
     let all: Vec<_> = (1..=s.page_count())
         .map(|p| s.scan_page(p).expect("scans"))
         .collect();
@@ -357,7 +389,9 @@ fn nothing_is_offered_when_nothing_repeats() {
 fn a_partial_sweep_offers_nothing() {
     // Suggesting from half a sweep would offer to hide whatever happened to be
     // scanned first, which is not the same question at all.
-    let Some(s) = session(A10, B03) else { return };
+    let Some(s) = session("same_producer") else {
+        return;
+    };
     let few: Vec<_> = (1..=5).map(|p| s.scan_page(p).expect("scans")).collect();
     assert!(suggest_ignores(&few, s.page_count()).is_empty());
 }
@@ -367,41 +401,40 @@ fn automatic_matching_lines_up_the_real_sets() {
     // Every sample pair is in order and the same length, so the right answer is
     // the identity — which is exactly what makes it a good check: anything
     // clever enough to reorder them is too clever.
-    for (a, b, n) in [
-        (A10, B03, 21),
-        (A10, D02, 21),
-        (SECOND_A07, SECOND_B02, 85),
-    ] {
-        let Some(mut s) = session(a, b) else { return };
+    for set in ["same_producer", "rotated", "large"] {
+        let (Some(mut s), Some(n)) = (session(set), expect(set, "sheets")) else {
+            return;
+        };
         let t0 = std::time::Instant::now();
         s.auto_match().expect("matches");
         let took = t0.elapsed();
 
         assert!(
             s.pairing_is_automatic(),
-            "{a}: the pairing is a content match"
+            "{set}: the pairing is a content match"
         );
-        assert_eq!(s.page_count(), n, "{a}: no sheet invented or lost");
+        assert_eq!(s.page_count(), n, "{set}: no sheet invented or lost");
         for p in 1..=n {
             let pair = s.pair(p);
             assert_eq!(
                 (pair.page_a, pair.page_b),
                 (p, p),
-                "{a} vs {b}: sheet {p} matched to {pair:?}"
+                "{set}: sheet {p} matched to {pair:?}"
             );
         }
         // Text only, nothing rendered. If this ever costs seconds it has stopped
         // being something to run on open.
-        assert!(took.as_secs_f32() < 10.0, "{a}: matching took {took:?}");
+        assert!(took.as_secs_f32() < 10.0, "{set}: matching took {took:?}");
     }
 }
 
 #[test]
 fn automatic_matching_survives_a_different_pdf_producer() {
-    // REV-P3 is Microsoft Print to PDF with CID TrueType fonts where REV-P2 is
-    // Ghostscript with subset Type1C. If the signature depended on how the text
-    // was encoded rather than what it says, this is where it would show.
-    let Some(mut s) = session(B03, D02) else {
+    // These two went through different PDF producers, one writing CID TrueType
+    // fonts where the other uses subset Type1C. If the signature depended on how
+    // the text was encoded rather than what it says, this is where it would
+    // show.
+    let Some(mut s) = session("cross_producer") else {
         return;
     };
     s.auto_match().expect("matches");
@@ -415,7 +448,7 @@ fn nudging_the_delta_replaces_an_automatic_match() {
     // The two mechanisms must not silently compose: an offset on top of a
     // content match is nudging an answer, and the reader could not tell which
     // they were looking at.
-    let Some(mut s) = session(A10, B03) else {
+    let Some(mut s) = session("same_producer") else {
         return;
     };
     s.auto_match().expect("matches");
@@ -435,10 +468,10 @@ fn the_text_diff_is_where_a_cross_producer_pair_becomes_readable() {
     // one — the difference between them is glyph rasterisation, not content.
     // The words show what actually changed, and the cross-producer pair should
     // come out no worse than the same-producer one.
-    let Some(same) = session(A10, B03) else {
+    let Some(same) = session("same_producer") else {
         return;
     };
-    let Some(cross) = session(B03, D02) else {
+    let Some(cross) = session("cross_producer") else {
         return;
     };
 
@@ -463,7 +496,9 @@ fn the_text_diff_is_where_a_cross_producer_pair_becomes_readable() {
 
 #[test]
 fn a_document_against_itself_says_nothing_changed() {
-    let Some(s) = session(A10, A10) else { return };
+    let Some(s) = session("identical") else {
+        return;
+    };
     for p in 1..=s.page_count() {
         assert!(
             s.page_text_changes(p).expect("reads").is_empty(),
@@ -474,7 +509,7 @@ fn a_document_against_itself_says_nothing_changed() {
 
 #[test]
 fn an_unmatched_sheet_reads_as_entirely_removed() {
-    let Some(mut s) = session(A10, B03) else {
+    let Some(mut s) = session("same_producer") else {
         return;
     };
     s.set_page_delta(1);
@@ -500,7 +535,9 @@ fn scan_all(s: &Session) -> Vec<SheetChanges> {
 fn the_report_summarises_moves_rather_than_listing_them() {
     // Sheet 8 of this pair moves 354 labels and changes 10 things. Listing the
     // moves buries the changes, so the report counts them in a sentence.
-    let Some(s) = session(A10, B03) else { return };
+    let Some(s) = session("same_producer") else {
+        return;
+    };
     let all = scan_all(&s);
     let r = s.report(&all);
     assert!(r.contains("moved without changing"), "moves are summarised");
@@ -512,17 +549,31 @@ fn the_report_summarises_moves_rather_than_listing_them() {
 
 #[test]
 fn the_report_says_what_changed_and_where() {
-    let Some(s) = session(A10, B03) else { return };
+    let Some(s) = session("same_producer") else {
+        return;
+    };
     let all = scan_all(&s);
     let r = s.report(&all);
 
-    assert!(r.contains("REV-P1.pdf"), "names the earlier revision");
-    assert!(r.contains("REV-P2.pdf"), "names the later one");
-    assert!(r.contains("21 sheets compared"));
+    let Some(m) = Samples::load() else { return };
+    let (pa, pb) = m
+        .both("same_producer")
+        .expect("the pair is on this machine");
+    let name = |p: &str| p.rsplit('/').next().unwrap_or(p).to_owned();
+    assert!(r.contains(&name(&pa)), "names the earlier revision");
+    assert!(r.contains(&name(&pb)), "names the later one");
+    let sheets = expect("same_producer", "sheets").unwrap_or(0);
+    assert!(r.contains(&format!("{sheets} sheets compared")));
     assert!(r.contains("## Sheet 2"), "has a section per changed sheet");
     // The net renames are the point of the whole thing.
+    let (Some(from), Some(to)) = (
+        m.text("same_producer", "renamed_from"),
+        m.text("same_producer", "renamed_to"),
+    ) else {
+        return;
+    };
     assert!(
-        r.contains("`NET_ALPHA`") && r.contains("`NET_BRAVO`"),
+        r.contains(&format!("`{from}`")) && r.contains(&format!("`{to}`")),
         "spells out the renames"
     );
     assert!(
@@ -535,7 +586,7 @@ fn the_report_says_what_changed_and_where() {
 fn the_report_says_when_part_of_the_sheet_was_not_compared() {
     // A report that quietly omitted this would be actively misleading: someone
     // reading it would take "nothing changed there" from "we did not look".
-    let Some(mut s) = session(A10, B03) else {
+    let Some(mut s) = session("same_producer") else {
         return;
     };
     let (w, h) = s.page_size(1).expect("has a sheet 1");
@@ -548,7 +599,9 @@ fn the_report_says_when_part_of_the_sheet_was_not_compared() {
 
 #[test]
 fn the_report_admits_a_half_finished_scan() {
-    let Some(s) = session(A10, B03) else { return };
+    let Some(s) = session("same_producer") else {
+        return;
+    };
     let few: Vec<_> = (1..=4).map(|p| s.scan_page(p).expect("scans")).collect();
     let r = s.report(&few);
     assert!(
@@ -559,7 +612,9 @@ fn the_report_admits_a_half_finished_scan() {
 
 #[test]
 fn a_report_on_two_identical_documents_says_nothing_changed() {
-    let Some(s) = session(A10, A10) else { return };
+    let Some(s) = session("identical") else {
+        return;
+    };
     let all = scan_all(&s);
     let r = s.report(&all);
     assert!(r.contains("Nothing changed."));
@@ -570,7 +625,9 @@ fn a_report_on_two_identical_documents_says_nothing_changed() {
 fn a_net_name_cannot_break_the_table() {
     // Schematic text is full of characters Markdown treats as syntax. A `|` in a
     // net name would split a row and silently move every later column.
-    let Some(s) = session(A10, B03) else { return };
+    let Some(s) = session("same_producer") else {
+        return;
+    };
     let all = scan_all(&s);
     let r = s.report(&all);
     for line in r

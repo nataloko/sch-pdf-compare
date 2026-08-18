@@ -99,6 +99,14 @@ look like "nothing changed here".
 page space so they survive zoom and rotation, and so one rectangle covers the
 same place on every sheet.
 
+**Settings are per document pair, and hand-editable.** Working out where a set's
+title block sits costs a reviewer a minute of attention; losing it when the
+window closes makes the feature not worth using. They are JSON on purpose — the
+regions worked out for one drawing set are usually right for the next one from
+the same office, and copying them should not need the application. A malformed
+file falls back to the defaults rather than refusing to start, and a file
+written by a newer version is left alone rather than overwritten.
+
 **PDF only, and not a viewer.** No epub, html, cbz, img or svg, and no
 JavaScript engine — those MuPDF features are compiled out. This tool is not
 trying to reach parity with the viewer it came from.
@@ -162,8 +170,12 @@ failure, which is why they are written down.
    it means a tile render is not byte-comparable to a full-page render and no
    test should assert that it is. Compare verdicts, not bytes.
 
-9. **`-for-testing` deliberately does not save settings.** Persistence has to be
-   exercised without it.
+9. **`-for-testing` deliberately does not save settings, and does not read
+   them either.** Persistence has to be exercised without it, and a test that
+   inherited a developer's real excluded regions would pass or fail depending on
+   whose machine it ran on. The window test asserts that a `--for-testing` run
+   leaves no settings file behind even after excluding regions and changing the
+   tolerance.
 
 ### Dead, and why
 
@@ -186,10 +198,10 @@ failure, which is why they are written down.
 
 Ranked for the schematic-review workflow.
 
-1. **Settings that persist.** Nothing is saved yet: the excluded regions a
-   reader works out for a document pair are lost when the window closes, and
-   `-for-testing` has nothing to opt out of. The fork stored them per document
-   pair and that is the shape to copy.
+1. **Printing, and exporting the change list.** Qt's print support is linked and
+   unused. A reviewer's output is not a window — it is the changes, on paper or
+   in a document somebody else can read. The text panel already produces exactly
+   that list; it has nowhere to go.
 2. **Alignment** (projection-profile registration). Designed in the fork,
    unbuilt, and now measured against: the one sample pair that looked like it
    might need it turns out to have no offset to find. Build it only if a

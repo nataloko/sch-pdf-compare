@@ -26,6 +26,14 @@ add_test(NAME abi_cxx COMMAND abi_cxx_test)
 # Neither harness has a Q_OBJECT in it; moc would only add a compile step.
 set_target_properties(abi_test abi_cxx_test PROPERTIES AUTOMOC OFF)
 
+# In the build root, beside the core's DLL. Windows has no rpath: the loader
+# looks next to the executable, so a test in its own directory cannot find the
+# library however well it linked. Unix does not need this — the rpath below
+# points at cargo's output — but one place for every binary is simpler than two
+# rules.
+set_target_properties(abi_test abi_cxx_test PROPERTIES
+    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}")
+
 if(UNIX)
     set_target_properties(abi_test abi_cxx_test PROPERTIES
         BUILD_RPATH "${SC_CARGO_OUT}")
@@ -55,6 +63,9 @@ target_compile_options(view_test PRIVATE ${SC_WARNINGS})
 add_dependencies(view_test sc_fixtures)
 add_test(NAME view COMMAND view_test)
 set_tests_properties(view PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+set_target_properties(view_test PROPERTIES
+    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}")
+
 if(UNIX)
     set_target_properties(view_test PROPERTIES BUILD_RPATH "${SC_CARGO_OUT}")
 endif()

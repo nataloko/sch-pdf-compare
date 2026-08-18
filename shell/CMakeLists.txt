@@ -111,6 +111,10 @@ add_custom_target(sc_core ALL
 # Windows has no rpath, so the loader looks beside the executable and nowhere
 # else useful. It belongs on `sc_core` rather than on the application, because
 # the tests are run without ever building the application.
+#
+# One copy serves every binary only because they are all put in the build root —
+# see `RUNTIME_OUTPUT_DIRECTORY` here and in `tests/`. They were not, at first,
+# and the tests then failed on Windows with 0xc0000135 while building perfectly.
 if(WIN32)
     add_custom_command(TARGET sc_core POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy_if_different

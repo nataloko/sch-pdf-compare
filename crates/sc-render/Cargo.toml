@@ -11,6 +11,12 @@ sc-diff.workspace = true
 # html, cbz, img, svg and the JavaScript engine cuts build time and attack
 # surface for formats no schematic set will ever be in.
 #
+# These features are honoured on the GNU-make path, which is every target except
+# MSVC. `mupdf-sys` builds MuPDF's own Visual Studio solution on MSVC and does
+# not map cargo features onto it at all, so an MSVC build gets the whole of
+# MuPDF whatever is written here — the first Windows CI run linked Tesseract OCR
+# into it. See `docs/design.md`.
+#
 # `base14-fonts` stays. The sample schematics embed their fonts, but a PDF that
 # names Helvetica without embedding it is common enough, and without the base14
 # set MuPDF has nothing to draw its text with.

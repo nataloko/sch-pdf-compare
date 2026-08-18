@@ -445,6 +445,15 @@ about this plan that looked likely to go badly: the fork it grew out of builds
 MuPDF through its own makefiles precisely to avoid that fight, and none of that
 turned out to be necessary.
 
+One difference between the two Windows routes is worth knowing before choosing.
+`mupdf-sys` builds MuPDF with GNU make everywhere except MSVC, and only that path
+maps cargo features onto the build. On MSVC it builds MuPDF's own Visual Studio
+solution instead and ignores the features entirely, so the careful list of
+formats this project does *not* want — epub, html, cbz, img, svg, the JavaScript
+engine — has no effect there. The first Windows CI run linked Tesseract OCR into
+the binary, which is how this came to light. A MinGW build honours the list; an
+MSVC build does not.
+
 Qt is not a problem so much as a choice of route, and it is worth being precise
 about which, because it is easy to state the awkward case as though it were the
 only one.

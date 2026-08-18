@@ -75,9 +75,16 @@ Tolerance still earns its place — it takes the unmatched ink from 7809 px to
 1969, a 75% cut — but it cannot make two typefaces into one.
 
 **So a cross-producer pair has a floor of roughly 25 reported regions a sheet,
-and most of them are text.** That is the strongest argument for the text-level
-diff: comparing extracted strings instead of glyph pixels sidesteps the entire
-problem for the part of a schematic that is writing.
+and most of them are text.** That is why the text-level comparison exists, and
+it settles the case: the same sheet reports 26 regions by pixels and **2** by
+words, those two being the revision letter and the date.
+
+Measured on the words themselves, 335 of that sheet's 341 words have an
+identical twin in the other revision and the furthest any of them moved is
+**0.985 pt** — so matching text by position is not merely possible across
+producers, it is easy. The two comparisons answer different questions and the
+tool shows both: only the pixels find a re-routed wire that carries no text, and
+only the words can say `NET_ALPHA → NET_BRAVO`.
 
 **Ignored regions are explicit, not inferred.** A drawing set shares a title
 block, so a changed date colours all 85 sheets. Automatic repeat detection finds
@@ -179,19 +186,11 @@ failure, which is why they are written down.
 
 Ranked for the schematic-review workflow.
 
-1. **Automatic page matching** by content signature, for sets whose sheets were
-   reordered or inserted. Text-token Jaccard signatures matched 21/21 pages
-   correctly across all three revisions of SET-ONE and across three different PDF
-   producers. Correct matches scored 0.75–0.98 against 0.06–0.63 for the
-   runner-up — except sheets 10–17, which are near-duplicate channel sheets
-   scoring 0.634 against each other, so sequence alignment is needed and greedy
-   best-match is not enough.
-2. **Text-level diff.** MuPDF's structured text gives text with positions.
-   Extract, normalise and diff by position and string, and a changed component
-   value becomes a table row rather than a red blob to squint at. Text extracts
-   cleanly from all three sample producers, including one using Identity-H CID
-   fonts where the others use WinAnsi Type1C, so this is producer-agnostic.
-3. **Alignment** (projection-profile registration). Designed in the fork,
+1. **Settings that persist.** Nothing is saved yet: the excluded regions a
+   reader works out for a document pair are lost when the window closes, and
+   `-for-testing` has nothing to opt out of. The fork stored them per document
+   pair and that is the shape to copy.
+2. **Alignment** (projection-profile registration). Designed in the fork,
    unbuilt, and now measured against: the one sample pair that looked like it
    might need it turns out to have no offset to find. Build it only if a
    document set turns up with a real basin the probe can see.

@@ -27,8 +27,41 @@ customer material. `samples/` is gitignored and stays that way.)
   the comparison on every sheet. Excluded artwork is drawn washed out inside a
   dashed border and counted in the status line, because "not compared" must
   never look like "nothing changed here".
-- **Manual sheet pairing** — `Alt+Shift+←/→` when a revision inserted or dropped
-  a sheet. Unmatched sheets are marked added or removed.
+- **Sheet pairing**, two ways. `Alt+Shift+←/→` nudges a uniform offset when a
+  revision inserted a sheet at the front; **Match Sheets by Content** works out
+  the pairing from what is written on them, for a set that was reordered.
+  Unmatched sheets are marked added or removed.
+- **A text panel** saying what the sheet *reads* differently — `NET_ALPHA →
+  NET_BRAVO`, `10k → 12k` — not only where it looks different. This is what makes
+  a comparison across two different PDF producers usable at all: see below.
+- **A background sweep** that scans the whole set the moment it opens, so the
+  question "which sheets changed" is answered without waiting.
+- **Repeat detection** that spots a title block changing on every sheet and
+  *offers* to exclude it. It never applies it: a net renamed across the whole
+  set looks exactly the same, and hiding that is the worst thing this could do.
+
+## Two revisions, two different PDF producers
+
+The awkward case, and the one that drove the design. Sheet 2 of the sample set,
+compared against the revision two later, which went through Microsoft Print to
+PDF where its predecessors went through Ghostscript:
+
+| | regions reported |
+| --- | --- |
+| pixels, no tolerance | 29 |
+| pixels, 1 px tolerance | 26 |
+| **words** | **2** |
+
+The two are the revision letter and the date. The other twenty-four are glyph
+rasterisation: one file draws its text with CID TrueType fonts where the other
+uses subset Type1C, so every character differs slightly everywhere there is
+writing. Probing every offset within ±3 pixels never gets below 14 regions and
+finds no minimum, so it is not a misaligned page and no alignment will fix it.
+
+Comparing what the text *says* sidesteps the whole problem for the part of a
+schematic that is writing, while the overlay still catches the re-routed wire
+that carries no text at all. Both panels, side by side, because the two
+questions are different.
 
 ## Building
 

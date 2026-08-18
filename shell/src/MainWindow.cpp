@@ -22,6 +22,8 @@
 #include <QPrintDialog>
 #include <QPrinter>
 #include <QProgressDialog>
+#include <QSpinBox>
+#include <QTimer>
 #include <QMessageBox>
 #include <QStatusBar>
 #include <QToolBar>
@@ -102,6 +104,15 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
     m_status = new QLabel(this);
     m_status->setObjectName(QStringLiteral("status"));
     statusBar()->addWidget(m_status);
+
+    m_rescan = new QTimer(this);
+    m_rescan->setSingleShot(true);
+    connect(m_rescan, &QTimer::timeout, this, [this] {
+        if (m_session) {
+            m_session->startSweep();
+            updateStatus();
+        }
+    });
 
     buildMenus();
     buildToolBar();
@@ -321,6 +332,33 @@ void MainWindow::buildToolBar() {
     bar->addAction(findChild<QAction *>(QStringLiteral("next")));
     bar->addSeparator();
     bar->addAction(m_excludeRegion);
+    bar->addSeparator();
+
+    // Tolerance on the bar rather than only on two keys nobody was told about.
+    // It is the one setting that changes every answer this tool gives, and the
+    // right value is not something a reader knows in advance — it is found by
+    // turning it up until the fringe goes and stopping before the real changes
+    // do. That is a control you want under your hand, not in a menu.
+    auto *tolLabel = new QLabel(tr("Tolerance"), bar);
+    tolLabel->setContentsMargins(8, 0, 4, 0);
+    bar->addWidget(tolLabel);
+    m_toleranceBox = new QSpinBox(bar);
+    m_toleranceBox->setObjectName(QStringLiteral("toleranceBox"));
+    m_toleranceBox->setRange(0, Session::maxTolerance());
+    m_toleranceBox->setSuffix(tr(" px"));
+    m_toleranceBox->setToolTip(
+        tr("How far a stroke may sit from its counterpart and still count as the "
+           "same artwork.\n\n"
+           "1 absorbs the fringe two PDF producers leave around the same line, "
+           "and it is why a cross-producer pair is readable at all. More is "
+           "needed as you zoom in, because this is measured in screen pixels.\n\n"
+           "Above %1, a stroke that merely moved stops being reported as a "
+           "change at all.")
+            .arg(Session::toleranceHidesMovement()));
+    bar->addWidget(m_toleranceBox);
+    m_needSessionWidgets.append(tolLabel);
+    m_needSessionWidgets.append(m_toleranceBox);
+    connect(m_toleranceBox, &QSpinBox::valueChanged, this, &MainWindow::changeTolerance);
 
     // Shorter words on the buttons than in the menu, because the menu has room
     // to say "Compare Two Files…" and a toolbar with eleven controls on it does
@@ -404,6 +442,11 @@ void MainWindow::enableSessionActions(bool on) {
     for (QAction *a : m_needSession) {
         if (a) {
             a->setEnabled(on);
+        }
+    }
+    for (QWidget *w : m_needSessionWidgets) {
+        if (w) {
+            w->setEnabled(on);
         }
     }
 }
@@ -711,6 +754,11 @@ void MainWindow::paintSheetForPrint(QPainter &g, QPrinter &printer, int sheet) {
                         .arg(QFileInfo(m_session->pathA()).fileName(),
                              QFileInfo(m_session->pathB()).fileName(), mode);
     QString line2 = tr("tolerance %1 px").arg(m_session->tolerance());
+    if (m_session->tolerance() > Session::toleranceHidesMovement()) {
+        // On the paper too. A printout is read away from the window that made
+        // it, and this changes what an unmarked part of the sheet means.
+        line2 += tr(" — a stroke that only moved is not reported");
+    }
     const int n = m_session->changeCount(sheet);
     if (n >= 0) {
         line2 += QStringLiteral("   ·   ") +
@@ -812,9 +860,33 @@ void MainWindow::matchSheets() {
 
 void MainWindow::nudgeTolerance(int by) {
     if (m_session) {
-        m_session->setTolerance(m_session->tolerance() + by);
-        persist();
+        changeTolerance(m_session->tolerance() + by);
     }
+}
+
+/// Changes the tolerance and arranges for the set to be scanned again.
+///
+/// Every scanned answer was about the old tolerance, and the core throws them
+/// away when it changes — so without this the sidebar simply empties and stays
+/// empty until the reader finds "Scan Every Sheet" for themselves. The sweep is
+/// what the tolerance is usually being changed *for*.
+///
+/// It waits a moment first. The spin box goes up one step per click and a
+/// reader hunting for the value that clears the fringe clicks it several times;
+/// restarting on each one stops a worker mid-sheet for nothing. Not the idle
+/// timer the ground rules forbid: this fires once, because of something the
+/// reader did, and never polls.
+void MainWindow::changeTolerance(int to) {
+    if (!m_session) {
+        return;
+    }
+    const int was = m_session->tolerance();
+    m_session->setTolerance(to);
+    if (m_session->tolerance() == was) {
+        return;
+    }
+    persist();
+    m_rescan->start(400);
 }
 
 void MainWindow::onCurrentPageChanged(int page) {
@@ -1011,6 +1083,13 @@ void MainWindow::updateStatus() {
         m_status->setText(tr("Open two revisions of a drawing to compare them."));
         return;
     }
+    // The toolbar's settings say what the core says, whatever changed them —
+    // the spin box, the two keys, or the pair's own saved settings on the way
+    // in.
+    if (m_toleranceBox) {
+        const QSignalBlocker block(m_toleranceBox);
+        m_toleranceBox->setValue(m_session->tolerance());
+    }
     if (m_view->regionArmed()) {
         m_status->setText(
             tr("Drag a rectangle over the part to leave out of the comparison.  "
@@ -1050,6 +1129,12 @@ void MainWindow::updateStatus() {
                        .arg(mode)
                        .arg(int(m_view->zoom() * 100))
                        .arg(m_session->tolerance());
+    // Next to the number it qualifies. A reader who turned the tolerance up to
+    // clear the fringe has to be told what it costs, at the moment they are
+    // reading the counts it produced.
+    if (m_session->tolerance() > Session::toleranceHidesMovement()) {
+        text += tr("   ⚠ a stroke that only moved is not reported");
+    }
     if (m_session->pairingIsAutomatic()) {
         text += tr("   sheets matched by content");
     } else if (m_session->pageDelta() != 0) {

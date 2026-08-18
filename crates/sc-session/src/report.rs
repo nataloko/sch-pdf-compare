@@ -87,6 +87,17 @@ impl Session {
             "- Tolerance: {tol} device pixel{}",
             if tol == 1 { "" } else { "s" }
         );
+        if tol > sc_diff::TOLERANCE_HIDES_MOVEMENT {
+            // The report leaves the application and is read without it. A
+            // tolerance this wide is a legitimate choice and it changes what
+            // "nothing changed here" means, so it travels with the numbers it
+            // produced rather than being left behind on a status line.
+            let _ = writeln!(
+                out,
+                "- **At this tolerance a stroke that merely moved is not \
+                 reported as a change.**"
+            );
+        }
         if !self.ignore_rects().is_empty() {
             // Named, not buried: a reader of this report has to be able to see
             // that part of every sheet was deliberately not compared.

@@ -32,6 +32,7 @@
 #include <QLabel>
 #include <QTest>
 #include <QScrollBar>
+#include <QSpinBox>
 #include <QToolBar>
 #include <QTreeWidget>
 
@@ -457,6 +458,65 @@ int main(int argc, char **argv) {
         check(view->layout() == CompareView::Layout::Single,
               QStringLiteral("and choosing a single view goes back to one sheet"));
         check(!sbs->isChecked(), QStringLiteral("and unchecks side by side"));
+    }
+
+    // Tolerance, on the bar. It is the one setting that changes every answer
+    // this tool gives, and the right value is found by turning it up until the
+    // fringe goes — which is not something to do through a menu.
+    {
+        auto *tol = win.findChild<QSpinBox *>(QStringLiteral("toleranceBox"));
+        check(tol != nullptr, QStringLiteral("the toolbar has a tolerance control"));
+        check(tol->maximum() == Session::maxTolerance(),
+              QStringLiteral("reaching as far as the core allows, %1 of %2")
+                  .arg(tol->maximum())
+                  .arg(Session::maxTolerance()));
+        check(tol->value() == s->tolerance(),
+              QStringLiteral("and showing what is in force, %1 of %2")
+                  .arg(tol->value())
+                  .arg(s->tolerance()));
+
+        const int above = Session::toleranceHidesMovement() + 1;
+        tol->setValue(above);
+        QTest::qWait(50);
+        check(s->tolerance() == above,
+              QStringLiteral("the control sets it, got %1").arg(s->tolerance()));
+        // Above the line it hides small movements, and the reader is told so
+        // next to the counts it produced rather than left to remember it.
+        check(status->text().contains(QStringLiteral("only moved")),
+              QStringLiteral("and warns what that costs: '%1'").arg(status->text()));
+        check(s->report().contains(QStringLiteral("merely moved")),
+              QStringLiteral("as does the report, which is read without the window"));
+
+        // Changing it throws every scanned answer away, so the set is swept
+        // again by itself. Leaving that to the reader empties the sidebar and
+        // says nothing about why.
+        QTest::qWait(600);
+        check(waitForSweep(s), QStringLiteral("changing the tolerance sweeps the set again"));
+        check(status->text().contains(QStringLiteral("sheets changed")),
+              QStringLiteral("without the reader asking for it: '%1'").arg(status->text()));
+
+        // Asking for more than the ceiling must not throw a finished sweep away
+        // to arrive at the number it was already at.
+        tol->setValue(Session::maxTolerance());
+        QTest::qWait(600);
+        check(waitForSweep(s), QStringLiteral("the sweep at the ceiling finishes"));
+        check(s->changeCount(1) >= 0, QStringLiteral("sheet 1 has been scanned"));
+        s->setTolerance(Session::maxTolerance() + 5);
+        QTest::qWait(100);
+        check(s->tolerance() == Session::maxTolerance(),
+              QStringLiteral("asking for more than the ceiling is clamped"));
+        check(s->changeCount(1) >= 0,
+              QStringLiteral("and keeps the scan it already had, got %1").arg(s->changeCount(1)));
+
+        // And coming back down finds everything again, by itself.
+        tol->setValue(1);
+        QTest::qWait(600);
+        check(waitForSweep(s), QStringLiteral("and back down again"));
+        check(sheets->topLevelItemCount() == 6,
+              QStringLiteral("the sidebar fills back in, got %1")
+                  .arg(sheets->topLevelItemCount()));
+        check(!status->text().contains(QStringLiteral("only moved")),
+              QStringLiteral("and the warning goes with it: '%1'").arg(status->text()));
     }
 
     // One sheet at a time. A set is read sheet by sheet as often as it is

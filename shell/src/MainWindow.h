@@ -10,9 +10,11 @@ class CompareView;
 class QLabel;
 class QPainter;
 class QPrinter;
+class QTimer;
 class QAction;
 class QActionGroup;
 class QCheckBox;
+class QSpinBox;
 class QTreeWidget;
 class Session;
 
@@ -57,6 +59,8 @@ class MainWindow : public QMainWindow {
     void nudgePairing(int by);
     void matchSheets();
     void nudgeTolerance(int by);
+    // The one path that changes the tolerance, whichever control asked.
+    void changeTolerance(int to);
 
   protected:
     void closeEvent(QCloseEvent *e) override;
@@ -101,6 +105,12 @@ class MainWindow : public QMainWindow {
     QAction *m_sideBySideAct = nullptr;
     QAction *m_singlePageAct = nullptr;
     QActionGroup *m_modeGroup = nullptr;
-    // Actions that need a comparison; see enableSessionActions.
+    // The toolbar's two settings, as opposed to its buttons.
+    QSpinBox *m_toleranceBox = nullptr;
+    // Sweeps the set again a moment after the tolerance settles; see
+    // changeTolerance for why it waits.
+    QTimer *m_rescan = nullptr;
+    // Actions and controls that need a comparison; see enableSessionActions.
     QVector<QAction *> m_needSession;
+    QVector<QWidget *> m_needSessionWidgets;
 };

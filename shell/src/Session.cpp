@@ -204,7 +204,32 @@ int Session::tolerance() const {
     return sc_session_tolerance(m_s);
 }
 
+int Session::maxTolerance() {
+    return sc_max_tolerance();
+}
+
+int Session::toleranceHidesMovement() {
+    return sc_tolerance_hides_movement();
+}
+
+int Session::sharedInk() const {
+    return sc_session_shared_ink(m_s);
+}
+
+void Session::setSharedInk(int percent) {
+    if (percent == sharedInk()) {
+        return;
+    }
+    sc_session_set_shared_ink(m_s, percent);
+    emit invalidated();
+}
+
 void Session::setTolerance(int t) {
+    // Clamped here, not only in the core. The core clamps too, but setting it
+    // drops every scanned sheet — so nudging past the ceiling with
+    // `Alt+Shift+=` threw away a finished sweep of 85 sheets and re-ran it to
+    // reach the number it was already at.
+    t = qBound(0, t, maxTolerance());
     if (t == tolerance()) {
         return;
     }

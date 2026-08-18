@@ -58,6 +58,15 @@ class Session : public QObject {
 
     int tolerance() const;
     void setTolerance(int t);
+    // The core's ceiling, and the tolerance past which a stroke that moved
+    // stops being reported. Asked for rather than written down here: both are
+    // properties of the comparison kernel, and the ceiling has moved once.
+    static int maxTolerance();
+    static int toleranceHidesMovement();
+
+    // How strongly the overlay draws what the two revisions agree on, 0 to 100.
+    int sharedInk() const;
+    void setSharedInk(int percent);
 
     // The two overlay colours. Configurable because the default pair is red and
     // green, which a reader with red-green colour blindness cannot use, and

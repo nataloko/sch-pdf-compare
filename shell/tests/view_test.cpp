@@ -308,9 +308,26 @@ int main(int argc, char **argv) {
     check(s->ignoreRects().size() == 1,
           QStringLiteral("a plain drag excludes a region, got %1").arg(s->ignoreRects().size()));
     check(!view->regionArmed(), QStringLiteral("and disarms, so the next drag scrolls"));
+    // Excluding a region throws every scanned answer away, because every one of
+    // them was about a comparison that included it. Finding out which sheets
+    // still have something on them is the reason the rectangle was drawn, so
+    // the set is swept again without being asked. Left to the reader, the
+    // sidebar simply emptied — which reads as "nothing changed anywhere".
+    check(s->sweepStatus().running || s->sweepStatus().finished,
+          QStringLiteral("excluding a region starts the sweep again"));
+    check(waitForSweep(s), QStringLiteral("and it finishes"));
+    check(sheets->topLevelItemCount() > 0 || s->changeCount(1) >= 0,
+          QStringLiteral("so the sidebar is answers, not an empty list"));
     shot(&win, QStringLiteral("region-excluded-by-hand"));
+
     win.findChild<QAction *>(QStringLiteral("clearRegions"))->trigger();
     QTest::qWait(20);
+    check(s->sweepStatus().running || s->sweepStatus().finished,
+          QStringLiteral("clearing them starts it again too"));
+    check(waitForSweep(s), QStringLiteral("and that finishes"));
+    check(sheets->topLevelItemCount() == 6,
+          QStringLiteral("with every sheet back on the list, got %1")
+              .arg(sheets->topLevelItemCount()));
 
     // Nudging the pairing changes which sheets face each other.
     const QImage drawnPaired = view->viewport()->grab().toImage();

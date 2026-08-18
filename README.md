@@ -41,7 +41,8 @@ customer material. The `samples/` directory stays out of the repository.
   that region on all the sheets. It shows the artwork in the region with less
   ink, inside a dashed border, and gives a count in the status line. Thus a
   region that the software did not compare does not look like a region with no
-  changes.
+  changes. The software scans all the sheets again when you add a region or
+  remove a region, because each result was for a different comparison.
 - **Two methods to pair the sheets.** `Alt+Shift+←/→` moves the pairing by one
   sheet. The **Match Sheets by Content** command finds the pairs from the text on
   the sheets. The software identifies a sheet that has no pair as an added sheet

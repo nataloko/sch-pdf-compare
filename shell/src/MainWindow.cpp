@@ -316,6 +316,10 @@ void MainWindow::buildMenus() {
         if (m_session) {
             m_session->clearIgnoreRects();
             persist();
+            // Same as adding one: what was excluded is compared again now, and
+            // nothing knows that until the set has been swept.
+            m_session->startSweep();
+            updateStatus();
         }
     });
     clr->setObjectName(QStringLiteral("clearRegions"));
@@ -1028,6 +1032,13 @@ void MainWindow::onRegionSelected(int page, const QRectF &r) {
     // needs — and why the sheet the rectangle was drawn on does not matter.
     m_session->addIgnoreRect(r);
     persist();
+    // And every sheet's answer was about the comparison before this rectangle,
+    // so the core has thrown them all away. Sweeping again is the whole point
+    // of drawing it: a reader excludes the title block precisely to find out
+    // which sheets still have something on them. Without this the sidebar
+    // emptied and stayed empty, which reads as "nothing changed anywhere".
+    m_session->startSweep();
+    updateStatus();
 }
 
 void MainWindow::scanEverySheet() {

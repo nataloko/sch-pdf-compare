@@ -531,6 +531,16 @@ change so that clicking the spin box four times starts one sweep rather than
 four. That timer is not the idle timer the ground rules forbid: it fires once,
 because of something the reader did, and never polls.
 
+**Excluded regions had the same hole, and it mattered more there.** The core
+drops every scanned answer when a rectangle is added or cleared — it has to,
+since each of them was about a comparison that included it — and the window
+never swept again. So the sidebar emptied the moment a reader excluded the title
+block, and stayed empty, which reads as "nothing changed anywhere". Finding out
+which sheets still have something on them is the entire reason for drawing that
+rectangle. Adding one and clearing them all now start the sweep immediately,
+with no delay: both are single deliberate acts, and "Exclude Suggested Regions"
+adds its whole list before starting one.
+
 **Fading the drawing the two revisions agree on.** The composition rule splits
 each pixel into `shared = min(a, b)`, drawn neutral black, and the leftover on
 each side, drawn in that side's colour. `Options::shared_ink` scales the first

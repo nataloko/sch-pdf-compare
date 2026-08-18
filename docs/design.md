@@ -225,11 +225,47 @@ export rather than a print-to-PDF — the sheets came back at 10%, 44% and 76%,
 which is the difference between a revision and a redraw, and no count of regions
 could have said it.
 
-This does not revive alignment. The pairs that are the same size on paper are
-still registered to within a pixel, and the probe over ±3 pixels still finds no
-basin to slide into. A different paper size is a different problem with a
-different answer: reissue the two revisions at the same size, or scale one to the
-other, which is not something this tool should do quietly.
+### Alignment and scaling are one problem
+
+The first draft of this section called a paper-size mismatch "a different problem
+with a different answer" from alignment. That is wrong, and the framing is what
+let the case be filed as a new category instead of as a transform that is not the
+identity. Translation and scale are both the same question — **what transform
+maps sheet B onto sheet A** — and one estimator covers them.
+
+Measured, to check that rather than assert it. Rendering B at the scale that
+makes its sheet the same size as A's:
+
+| Pair | estimated scale | regions before | regions after |
+| --- | --- | --- | --- |
+| same size on paper | 1.0000 × 1.0000 | 37 | 37 |
+| A4 against A3 | 0.7070 × 0.7067 | 7 | 2 |
+
+The control is the important row: a same-size pair estimates exactly the identity
+and nothing changes. One mechanism, and it is a no-op when there is nothing to
+correct — which is the argument for having one rather than two.
+
+The second row is the one that teaches something. 0.7070 is 1/√2 to four figures,
+so the estimate is geometrically right, and yet the comparison is no better
+afterwards: B still lays down two and a half times A's ink. Rendered at a common
+size the two sheets are visibly the **same circuit** — the same blocks in the same
+arrangement — but re-laid out, with blocks moved, notes added and the title block
+reworded. The sheet was redrawn at a new size, not reissued at one.
+
+Two things follow.
+
+**Page size is the wrong estimator.** It corrects the sheet, not the content.
+The transform has to come from the ink, which is what the projection-profile
+registration in the fork was for — generalised from a translation to a similarity
+transform, which is a small step once the machinery exists.
+
+**No transform rescues a redraw.** For this pair the honest answer is still that
+the sheets are not comparable, which is what the size warning and the coverage
+figure now say. Estimating a transform would not have changed that, and would
+have hidden it behind a plausible-looking number.
+
+So alignment and scaling collapse into one future item rather than two, and the
+reporting is the part that had to exist first.
 
 ## Refusing a file, and saying why
 
@@ -368,11 +404,11 @@ Ranked for the schematic-review workflow.
    Wine. What is left is building the shell — on Windows with the official Qt,
    or cross-built from a distribution with a MinGW Qt — and then an installer.
    Neither has been run; this machine has neither.
-2. **Scaling a sheet to its counterpart**, for a set reissued at a different
-   paper size. The mismatch is now reported rather than hidden, which is the
-   part that mattered. Scaling would change every line weight on the sheet and
-   make its own fringe, so it wants measuring before it is built.
-3. **Alignment** (projection-profile registration). Designed in the fork,
-   unbuilt, and measured against: every pair that is the same size on paper has
-   no offset to find. Build it only if a document set turns up with a real basin
-   the probe can see.
+2. **Estimate the transform between two sheets** — one item, not two. Alignment
+   and scaling are the same question, and a single estimator covers both and is
+   the identity when nothing needs correcting. It has to be estimated from the
+   **ink**, not from the page size: page size corrects the sheet and leaves the
+   content where it was. Every same-size pair in the corpus estimates the
+   identity, so this stays unbuilt until a set turns up whose content genuinely
+   is offset or scaled without being redrawn. Applying it would resample every
+   line on the sheet, so it wants measuring before it is switched on.

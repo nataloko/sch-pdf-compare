@@ -194,6 +194,35 @@ failure, which is why they are written down.
 - **"`TocTree`'s root is an invisible container."** A Win32 tree-view detail. The
   changed-sheet list is a `QTreeWidget` populated from plain data.
 
+## Comparing what the sheet says
+
+Two tolerances, not one, and the reason is worth keeping.
+
+Matching a word to an *identical* word can afford a generous radius — the text
+matching exactly is already the evidence, and position only has to rule out a
+different instance of the same string. Matching a word to a *different* one has
+no such corroboration, so it stays tight or it pairs a label with its unrelated
+neighbour and reports a change that never happened.
+
+The first attempt used one tolerance of 2 pt, taken from the single sheet that
+had been measured, where the largest displacement between producers was 0.985 pt.
+Across the rest of the set it reaches 5.4 pt, and at 2 pt most of a cover sheet
+came back as every word removed and the same word added. **A constant measured
+on one sheet is a constant measured on nothing.**
+
+Text that merely **moved** is its own kind of change. A sheet that was
+re-laid-out moves dozens of identical labels, and reporting each as one thing
+gone and another arrived doubles the noise and buries the handful that say
+something different — sheet 8 of the sample set goes from 770 rows to 62 once
+moves are counted rather than listed.
+
+One more trap, met and fixed: a sheet with 47 labels reading `33R` will happily
+match any of them to any other. An early diagnostic searched for the nearest
+identical text anywhere on the sheet and reported a 9 pt median displacement,
+which looked exactly like a 2% horizontal rescale between producers. It was not:
+a distinctive token sat at the same coordinates in both files. **On a dense
+sheet, "nearest word with the same text" is not evidence of anything.**
+
 ## Windows
 
 The core cross-compiles to `x86_64-pc-windows-gnu` with the MinGW toolchain, and
@@ -212,11 +241,13 @@ alongside.
 
 Ranked for the schematic-review workflow.
 
-1. **Printing, and exporting the change list.** Qt's print support is linked and
-   unused. A reviewer's output is not a window — it is the changes, on paper or
-   in a document somebody else can read. The text panel already produces exactly
-   that list; it has nowhere to go.
-2. **Alignment** (projection-profile registration). Designed in the fork,
+1. **Printing.** Qt's print support is linked and unused. The change report
+   covers circulating findings as a document; what it does not cover is the
+   overlay of a particular sheet, on paper, to mark up by hand.
+2. **Side by side.** Overlay and the `Tab` blink cover most of it, and this was
+   a "2-up virtual page" hack in the fork. Owning the viewport makes it an
+   honest second viewport, but nothing has needed it yet.
+3. **Alignment** (projection-profile registration). Designed in the fork,
    unbuilt, and now measured against: the one sample pair that looked like it
    might need it turns out to have no offset to find. Build it only if a
    document set turns up with a real basin the probe can see.

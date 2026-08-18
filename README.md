@@ -36,6 +36,11 @@ customer material. `samples/` is gitignored and stays that way.)
   a comparison across two different PDF producers usable at all: see below.
 - **A background sweep** that scans the whole set the moment it opens, so the
   question "which sheets changed" is answered without waiting.
+- **A change report** — File ▸ Export Change Report — writing the whole
+  comparison as Markdown, sheet by sheet, with the text changes as a table.
+  A review's output is not a window; it is the list somebody else has to read.
+- **Excluded regions remembered per document pair**, so working out where a
+  set's title block sits is done once rather than every session.
 - **Repeat detection** that spots a title block changing on every sheet and
   *offers* to exclude it. It never applies it: a net renamed across the whole
   set looks exactly the same, and hiding that is the worst thing this could do.

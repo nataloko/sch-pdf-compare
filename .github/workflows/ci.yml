@@ -6,6 +6,11 @@
 # assertion until something builds it. It is the only part of the project whose
 # correctness nobody has observed.
 #
+# The installer job builds the Windows artefact the way a release builds it —
+# cross-compiled in Fedora — and then installs it under Wine and starts what it
+# installed. Building an installer proves nothing about whether the program
+# inside it can start, which is the failure this kind of packaging actually has.
+#
 # Neither job can run the sample-set tests. The drawings are customer material
 # and are not in the repository, so those tests skip and the `sc-fixture` tests —
 # which write their own documents — carry the coverage.
@@ -125,3 +130,35 @@ jobs:
         run: ./packaging/windows/build-core.sh
         env:
           WINE: /usr/bin/wine64
+
+  # The installer, built the way a release is built: cross-compiled in a Fedora
+  # container, because that is where a MinGW Qt 6 with host-runnable tools comes
+  # from. This job runs *inside* that container, so it calls the two scripts
+  # directly rather than `installer.sh`, which would want a container engine of
+  # its own.
+  #
+  # It goes as far as Wine, which is what makes it worth a job at all: building
+  # an installer proves nothing about whether the program inside it can start.
+  installer:
+    runs-on: ubuntu-24.04
+    container: registry.fedoraproject.org/fedora:43
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Install the cross toolchain, Qt and NSIS
+        run: ./packaging/windows/install-build-deps.sh
+
+      - name: Build the installer
+        run: ./packaging/windows/build.sh
+
+      - name: Install it under Wine, start it, and take it apart
+        run: |
+          dnf -y install --setopt=install_weak_deps=False wine >/dev/null
+          ./packaging/windows/verify.sh
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows-installer
+          path: packaging/windows/build/*-setup.exe
+          if-no-files-found: error

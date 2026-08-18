@@ -101,14 +101,24 @@ MuPDF builds for the MinGW target with no special handling, in about half a
 minute, and the DLL passes the whole ABI harness under Wine.
 `crates/.cargo/config.toml` holds the two settings it needs.
 
-Cross-building the **shell** is the awkward part, and only because of Qt: it
-needs a MinGW Qt 6 whose `moc`, `rcc` and `uic` run on the build machine, which
-Ubuntu does not package and Fedora does (`mingw64-qt6-qtbase`). That is a reason
-to cross-compile from Fedora, or to build on Windows — not a requirement of this
-project.
+Cross-building the **shell** needs a MinGW Qt 6 whose `moc`, `rcc` and `uic` run
+on the build machine, which Ubuntu does not package and Fedora does
+(`mingw64-qt6-qtbase`). So it happens in a Fedora container, and it builds the
+installer while it is there:
 
-**Neither route has been run here.** This machine has no Windows and no MinGW Qt;
-what is verified is the core cross-build and its harness under Wine.
+```sh
+./packaging/windows/installer.sh --verify
+```
+
+That produces `packaging/windows/build/sch-pdf-compare-<version>-x86_64-setup.exe`,
+then installs it under Wine, starts what it installed, and uninstalls it again.
+`packaging/windows/README.md` has the why and the traps.
+
+**What is verified here and what is not.** The core cross-builds and passes its
+whole ABI harness under Wine; the shell cross-builds, and the installer it goes
+into installs, starts and uninstalls under Wine. Nobody here has run any of it
+on Windows itself — that is what the CI Windows job is for, and it builds
+natively with MSVC and the official Qt rather than with MinGW.
 
 ## Packaging
 

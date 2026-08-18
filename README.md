@@ -128,10 +128,19 @@ The same commands operate on Windows with the official Qt for Windows. The Qt
 installer gives two versions, and this project can use each one. MinGW is not
 necessary for this project.
 
-`packaging/windows/build-core.sh` also makes the core for Windows on a Linux
-machine and does a test of it with Wine. Only a cross-build of the shell on a
-Linux machine must have a MinGW Qt 6, because the Qt tools operate on the build
-machine.
+This command makes the Windows installer on a Linux machine:
+
+```sh
+./packaging/windows/installer.sh --verify
+```
+
+The command uses a container with Fedora, because Fedora has a MinGW Qt 6 whose
+tools operate on the build machine. The `--verify` option then installs the
+result with Wine, starts the program, and removes it again.
+`packaging/windows/README.md` gives more information.
+
+`packaging/windows/build-core.sh` makes only the core and does a test of it
+with Wine.
 
 ## Layout
 

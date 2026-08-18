@@ -670,6 +670,52 @@ ABI whose returns are all borrowed, so no allocation crosses it and there is no
 allocator to mismatch. Matching the two halves' toolchains is still the sensible
 default, but the design does not punish getting it wrong.
 
+## The Windows installer
+
+The plan said MinGW cross-build plus NSIS, and that is what this is. What made
+it possible was one package: **Fedora's `mingw64-qt6-qtbase`**, a MinGW Qt 6
+whose `moc`, `rcc` and `uic` run on the build machine. Ubuntu has no equivalent,
+so the build happens in a pinned Fedora container — the same shape as the
+AppImage's, and for a sharper reason. Everything else it needs is a package
+away anywhere, Rust's own `x86_64-pc-windows-gnu` standard library included.
+
+**NSIS because its compiler is a Linux binary.** `makensis` runs natively, so
+nothing that produces the artefact goes through Wine. Wine is used afterwards
+and for one narrow question — did every DLL resolve, and does Qt find its
+platform plugin — which is what deployment actually fails on and what a program
+missing either answers in milliseconds. `verify.sh` installs the built
+installer silently, starts what it installed and expects the *timeout* to be
+what stops it, then uninstalls and checks that a file the user left behind
+survived. That last check is why the uninstall list is generated from the
+staging tree: the alternative, `RMDir /r "$INSTDIR"`, is a recursive delete of
+a path somebody typed into the directory page.
+
+Two things about this were assertions in this repository until now, and one of
+them was wrong. The core cross-built and passed its harness under Wine; the
+shell had never been cross-built at all, and the first attempt stopped
+immediately — **the fixture generator was being built for Windows and then run
+on the build machine**. It is a tool used during the build rather than a part of
+the product, and what it writes is two PDFs that are the same bytes either way,
+so it is now built for the host with no `--target`. Running it through an
+emulator would have been answering the wrong question.
+
+The rest of the traps are in `packaging/windows/README.md`, because they are
+about the tools rather than about this program. Two are worth repeating here
+because both produced a *green* result that was false: `makensis` needs the x86
+stub package installed even for an amd64 installer, since it loads its default
+stub before it reads the script; and `wine-core` on its own runs a silent
+install that returns 0 and puts nothing on disk. The check that caught the
+second one then failed to fail honestly — it could not change into the
+directory that was never made, ran the program from the staging tree instead,
+and reported that it started. A verification step that cannot tell "it worked"
+from "it did not happen" is worse than none, so it now stops when there is
+nothing installed.
+
+The DLL set is closed out of the import tables rather than listed, since Qt's
+own deployment tool is a Windows program and cannot be run here. What decides
+"ours to ship" against "Windows'" is whether the MinGW sysroot has the file.
+That gives 33 files and 79 MB installed, from a 24 MB installer.
+
 ## The AppImage builds its own Qt
 
 The Linux artefact bundles a Qt built here rather than the distribution's, for

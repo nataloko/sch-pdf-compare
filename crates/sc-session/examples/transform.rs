@@ -9,8 +9,14 @@ use sc_render::{Document, Tile};
 fn plane(d: &Document, page: i32, zoom: f32, w: i32, h: i32) -> Vec<u8> {
     let r = d.render(page, zoom, Tile::whole(w, h)).expect("renders");
     ink_plane(
-        Pixels::new(r.samples(), w.min(r.width()), h.min(r.height()), r.stride(), PixelFormat::Bgr8)
-            .as_ref(),
+        Pixels::new(
+            r.samples(),
+            w.min(r.width()),
+            h.min(r.height()),
+            r.stride(),
+            PixelFormat::Bgr8,
+        )
+        .as_ref(),
         w as usize,
         h as usize,
     )
@@ -32,7 +38,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let (w, h) = da.page_device_size(page, zoom)?;
     let ia = plane(&da, page, zoom, w, h);
-    let opts = Options { tolerance: 1, ..Default::default() };
+    let opts = Options {
+        tolerance: 1,
+        ..Default::default()
+    };
     let (uw, uh) = (w as usize, h as usize);
 
     for (label, z) in [("B as-is", zoom), ("B scaled to A", zoom * sx)] {

@@ -14,10 +14,67 @@
 #include <stdint.h>
 
 /**
+ * Which of the three views a tile is composed for.
+ */
+enum ScViewMode
+#if defined(__cplusplus) || __STDC_VERSION__ >= 202311L
+  : uint8_t
+#endif // defined(__cplusplus) || __STDC_VERSION__ >= 202311L
+ {
+    SC_VIEW_MODE_OVERLAY = 0,
+    SC_VIEW_MODE_ONLY_A = 1,
+    SC_VIEW_MODE_ONLY_B = 2,
+};
+#ifndef __cplusplus
+#if __STDC_VERSION__ >= 202311L
+typedef enum ScViewMode ScViewMode;
+#else
+typedef uint8_t ScViewMode;
+#endif // __STDC_VERSION__ >= 202311L
+#endif // __cplusplus
+
+/**
+ * One open comparison. Opaque; every field is this crate's business.
+ */
+typedef struct ScSession ScSession;
+
+/**
+ * Which sheet of each document a virtual page stands for. 0 means the document
+ * has no matching sheet, and that page is drawn as entirely added or removed.
+ */
+typedef struct {
+    int32_t page_a;
+    int32_t page_b;
+} ScPair;
+
+/**
  * 0 is success. Every failure is negative, so `if (status < 0)` is the whole
  * check a caller needs.
  */
 typedef int32_t ScStatus;
+
+/**
+ * A composed tile, 32bpp BGRA, tightly packed.
+ *
+ * On a little-endian host this is exactly `QImage::Format_RGB32`, so the shell
+ * wraps `pixels` without copying anything.
+ */
+typedef struct {
+    const uint8_t *pixels;
+    int32_t width;
+    int32_t height;
+    size_t stride;
+} ScTile;
+
+/**
+ * A rectangle in page space, in points.
+ */
+typedef struct {
+    float x;
+    float y;
+    float dx;
+    float dy;
+} ScRectF;
 
 #define SC_OK 0
 
@@ -33,9 +90,23 @@ typedef int32_t ScStatus;
 
 #define SC_ERR_FORMAT -3
 
+#define SC_ERR_NO_PAGE -4
+
+#define SC_ERR_GEOMETRY -5
+
 #ifdef __cplusplus
 extern "C" {
 #endif // __cplusplus
+
+/**
+ * The last failure on this thread, as a NUL-terminated string.
+ *
+ * # Safety
+ * The pointer is valid until the next failing call on the same thread. Copy it
+ * if you intend to keep it. Never null; an empty string means nothing has
+ * failed yet.
+ */
+const char *sc_last_error(void);
 
 /**
  * The library version, as a NUL-terminated string that lives forever.
@@ -45,6 +116,212 @@ extern "C" {
  * lifetime of the process and must not be freed.
  */
 const char *sc_version(void);
+
+/**
+ * Opens two revisions for comparison.
+ *
+ * # Safety
+ * `path_a` and `path_b` must be NUL-terminated UTF-8. Returns null on failure,
+ * with the reason in [`sc_last_error`]. Free with [`sc_session_free`].
+ */
+ScSession *sc_session_open(const char *path_a,
+                           const char *path_b);
+
+/**
+ * Closes a comparison. Null is a no-op, and every pointer this session ever
+ * handed out is dangling afterwards.
+ *
+ * # Safety
+ * `s` must be a pointer from [`sc_session_open`] that has not already been
+ * freed.
+ */
+void sc_session_free(ScSession *s);
+
+/**
+ * How many virtual sheets the comparison has.
+ *
+ * Not either document's own count: the range has to cover both, so a set that
+ * gained sheets at the front is longer than either. 0 for a null session.
+ *
+ * # Safety
+ * `s` must be null or a live session.
+ */
+int32_t sc_session_page_count(const ScSession *s);
+
+/**
+ * Which sheet of each document virtual page `page_no` stands for.
+ *
+ * # Safety
+ * `s` must be null or a live session. A null session or an out-of-range page
+ * gives `{0, 0}`.
+ */
+ScPair sc_session_pair(const ScSession *s, int32_t page_no);
+
+/**
+ * The sheet's size in points, after any rotation the file carries.
+ *
+ * # Safety
+ * `s` must be null or a live session; `w_pt` and `h_pt` must be writable.
+ */
+ScStatus sc_session_page_size(const ScSession *s,
+                              int32_t page_no,
+                              float *w_pt,
+                              float *h_pt);
+
+/**
+ * The sheet's size in device pixels at `zoom`, as the renderer will round it.
+ *
+ * The viewer lays pages out with this before it has rendered any of them.
+ *
+ * # Safety
+ * `s` must be null or a live session; `w` and `h` must be writable.
+ */
+ScStatus sc_session_page_device_size(const ScSession *s,
+                                     int32_t page_no,
+                                     float zoom,
+                                     int32_t *w,
+                                     int32_t *h);
+
+/**
+ * Composes a tile of the comparison.
+ *
+ * `x` and `y` are device pixels at `zoom` with their origin at the sheet's
+ * top-left.
+ *
+ * # Safety
+ * `s` must be a live session and `out` writable. **The pixels `out` points at
+ * are borrowed and stay valid only until the next `sc_session_tile` call on
+ * this session, or until it is freed.** Draw from them or copy them; do not
+ * keep the pointer.
+ */
+ScStatus sc_session_tile(ScSession *s,
+                         int32_t page_no,
+                         float zoom,
+                         int32_t x,
+                         int32_t y,
+                         int32_t width,
+                         int32_t height,
+                         ScTile *out);
+
+/**
+ * # Safety
+ * `s` must be null or a live session.
+ */
+ScViewMode sc_session_view_mode(const ScSession *s);
+
+/**
+ * # Safety
+ * `s` must be null or a live session.
+ */
+void sc_session_set_view_mode(ScSession *s, ScViewMode mode);
+
+/**
+ * How far, in device pixels, ink may sit from its counterpart and still count
+ * as the same artwork. Clamped to 0..=3.
+ *
+ * # Safety
+ * `s` must be null or a live session.
+ */
+int32_t sc_session_tolerance(const ScSession *s);
+
+/**
+ * Changing the tolerance changes every answer, so the scan cache is dropped.
+ *
+ * # Safety
+ * `s` must be null or a live session.
+ */
+void sc_session_set_tolerance(ScSession *s, int32_t tolerance);
+
+/**
+ * # Safety
+ * `s` must be null or a live session.
+ */
+int32_t sc_session_page_delta(const ScSession *s);
+
+/**
+ * Nudges which sheet of B lines up with which sheet of A.
+ *
+ * Every cached scan is about the old pairing, so they all go.
+ *
+ * # Safety
+ * `s` must be null or a live session.
+ */
+void sc_session_set_page_delta(ScSession *s, int32_t delta);
+
+/**
+ * Excludes a region, in page points, from the comparison on **every** sheet —
+ * which is what a shared title block needs.
+ *
+ * # Safety
+ * `s` must be null or a live session.
+ */
+void sc_session_add_ignore_rect(ScSession *s,
+                                float x,
+                                float y,
+                                float dx,
+                                float dy);
+
+/**
+ * # Safety
+ * `s` must be null or a live session.
+ */
+void sc_session_clear_ignore_rects(ScSession *s);
+
+/**
+ * # Safety
+ * `s` must be null or a live session.
+ */
+size_t sc_session_ignore_rect_count(const ScSession *s);
+
+/**
+ * # Safety
+ * `s` must be null or a live session; `out` must be writable.
+ */
+ScStatus sc_session_ignore_rect(const ScSession *s,
+                                size_t index,
+                                ScRectF *out);
+
+/**
+ * Scans one sheet for regions where the two documents disagree, and caches it.
+ *
+ * Costs roughly a third of a second the first time and nothing afterwards.
+ *
+ * # Safety
+ * `s` must be null or a live session.
+ */
+ScStatus sc_session_scan_page(ScSession *s,
+                              int32_t page_no);
+
+/**
+ * How many change regions the sheet's scan found. −1 if it has not been
+ * scanned yet, which is not the same as 0.
+ *
+ * # Safety
+ * `s` must be null or a live session.
+ */
+int32_t sc_session_change_count(const ScSession *s, int32_t page_no);
+
+/**
+ * How many of the sheet's regions fell inside an excluded rectangle.
+ *
+ * Reported rather than dropped: "not compared" must never read as "nothing
+ * changed here".
+ *
+ * # Safety
+ * `s` must be null or a live session.
+ */
+int32_t sc_session_ignored_count(const ScSession *s, int32_t page_no);
+
+/**
+ * One change region, in page points.
+ *
+ * # Safety
+ * `s` must be null or a live session; `out` must be writable.
+ */
+ScStatus sc_session_change(const ScSession *s,
+                           int32_t page_no,
+                           size_t index,
+                           ScRectF *out);
 
 #ifdef __cplusplus
 }  // extern "C"

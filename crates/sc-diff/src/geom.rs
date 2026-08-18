@@ -66,3 +66,55 @@ impl Rect {
         p.x >= self.x && p.x < self.x + self.dx && p.y >= self.y && p.y < self.y + self.dy
     }
 }
+
+/// A rectangle in page space, in points.
+///
+/// Change boxes and excluded regions are stored like this rather than in device
+/// pixels so they survive zoom and rotation, and so one rectangle covers the
+/// same place on every sheet — which is exactly what a shared title block needs.
+#[derive(Clone, Copy, PartialEq, Debug, Default)]
+#[repr(C)]
+pub struct RectF {
+    pub x: f32,
+    pub y: f32,
+    pub dx: f32,
+    pub dy: f32,
+}
+
+impl RectF {
+    pub const fn new(x: f32, y: f32, dx: f32, dy: f32) -> Self {
+        Self { x, y, dx, dy }
+    }
+
+    pub fn contains(&self, x: f32, y: f32) -> bool {
+        x >= self.x && x < self.x + self.dx && y >= self.y && y < self.y + self.dy
+    }
+
+    /// True when every corner of `other` is inside this one.
+    pub fn contains_rect(&self, other: &RectF) -> bool {
+        other.x >= self.x
+            && other.y >= self.y
+            && other.x + other.dx <= self.x + self.dx
+            && other.y + other.dy <= self.y + self.dy
+    }
+
+    /// Device pixels at `zoom` back to points.
+    pub fn from_device(r: Rect, zoom: f32) -> Self {
+        Self {
+            x: r.x as f32 / zoom,
+            y: r.y as f32 / zoom,
+            dx: r.dx as f32 / zoom,
+            dy: r.dy as f32 / zoom,
+        }
+    }
+
+    /// Points to device pixels at `zoom`, rounded outward so a rectangle never
+    /// loses a pixel it partly covers.
+    pub fn to_device(self, zoom: f32) -> Rect {
+        let x0 = (self.x * zoom).floor() as i32;
+        let y0 = (self.y * zoom).floor() as i32;
+        let x1 = ((self.x + self.dx) * zoom).ceil() as i32;
+        let y1 = ((self.y + self.dy) * zoom).ceil() as i32;
+        Rect::new(x0, y0, x1 - x0, y1 - y0)
+    }
+}

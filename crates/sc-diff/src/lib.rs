@@ -22,7 +22,7 @@ pub mod pairing;
 
 pub use changes::{find_changes, Change};
 pub use compose::{compose, ink_plane, ink_row, TileMasks};
-pub use geom::{Point, Rect, Rgb, Size};
+pub use geom::{Point, Rect, RectF, Rgb, Size};
 pub use ink::{compose_ink, dilate_ink, ink_from_rgb, read_ink_row};
 pub use pairing::{Pair, Pairing};
 pub use pixels::{PixelFormat, Pixels, Tile};

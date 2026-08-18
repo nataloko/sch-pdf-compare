@@ -52,19 +52,32 @@ where line art lives.
 
 **Tolerance mattered; alignment did not.** The brief expected shifted pages.
 Measuring the real sample sets found every revision pair already pixel-
-registered (offset 0,0; correlation 0.99–1.00) across three different PDF
-producers — PDFCreator, Ghostscript and Microsoft Print to PDF. What they needed
-was slack. Measured again on this project's own samples, at 150 dpi with 1 px of
-tolerance:
+registered, and what they needed instead was slack. Re-measured here through the
+shipping algorithm — 100 dpi scan, 8 px cells, sheet 2 of SET-ONE:
 
-| Pair | Raw clusters | With 1 px tolerance |
-| --- | --- | --- |
-| SET-ONE REV-P1 vs REV-P2, same producer | 14 | 7 real changes |
-| SET-ONE REV-P2 vs REV-P3, PDFCreator vs MS Print to PDF | 102 | 1 |
+| Pair | tol 0 | tol 1 | tol 2 |
+| --- | --- | --- | --- |
+| REV-P1 vs REV-P2, same producer | 10 regions / 2198 px | **6 / 1443** | 4 / 1251 |
+| REV-P2 vs REV-P3, PDFCreator vs MS Print to PDF | 29 / 7809 px | **26 / 1969** | 8 / 1609 |
+| REV-P1 vs itself | 0 | 0 | 0 |
 
-Most of the raw pixel difference between two producers is sub-pixel
-rasterisation fringe. Auto-alignment remains unimplemented and, on this
-evidence, unneeded.
+Probing every whole-pixel offset within ±3 device pixels confirms the fork's
+conclusion and sharpens it. For the same-producer pair there is a clear basin —
+5–7 regions anywhere in ±1, jumping to 30+ beyond it — so the sheets are
+registered and 1 px of tolerance is exactly the right amount. For the
+cross-producer pair **there is no minimum at all**: the surface is flat at 14–26
+regions everywhere in the probe. That residue is not a shifted page and no
+alignment will remove it.
+
+What it is: REV-P3 draws its text with CID TrueType fonts where the others use
+subset Type1C, so the glyph shapes differ slightly everywhere there is text.
+Tolerance still earns its place — it takes the unmatched ink from 7809 px to
+1969, a 75% cut — but it cannot make two typefaces into one.
+
+**So a cross-producer pair has a floor of roughly 25 reported regions a sheet,
+and most of them are text.** That is the strongest argument for the text-level
+diff: comparing extracted strings instead of glyph pixels sidesteps the entire
+problem for the part of a schematic that is writing.
 
 **Ignored regions are explicit, not inferred.** A drawing set shares a title
 block, so a changed date colours all 85 sheets. Automatic repeat detection finds
@@ -155,4 +168,6 @@ Ranked for the schematic-review workflow. Items 1 and 2 are the fork's own
    cleanly from all three sample producers, including one using Identity-H CID
    fonts where the others use WinAnsi Type1C, so this is producer-agnostic.
 3. **Alignment** (projection-profile registration). Designed in the fork,
-   unbuilt, and still no evidence any real document set needs it.
+   unbuilt, and now measured against: the one sample pair that looked like it
+   might need it turns out to have no offset to find. Build it only if a
+   document set turns up with a real basin the probe can see.

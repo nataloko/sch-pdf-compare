@@ -436,6 +436,26 @@ report had already stopped doing — one sample sheet has 354 moves against 10
 changes. Moves are now counted on a control rather than listed, and the count is
 on show, so nothing is hidden without saying so.
 
+**Excluding a region was reachable only by Ctrl+drag**, and the first person
+handed the built application could not find it. Nothing in any menu said the
+feature existed; the only two entries about excluded regions were for accepting
+the suggested ones and for clearing them all. The drag stays, because anyone who
+knows it will keep using it, but there is now an entry that arms the next drag,
+a toolbar button beside it, and the same pair on a right-click — and while it is
+armed the status line says what to do and that Escape cancels.
+
+The same report said the keys did nothing, and the reason was next to it:
+**everything that needs a comparison did nothing, silently, when none was open**.
+`1`, `2`, `3` and `Tab` all went through a `if (!m_session) return;` and left no
+trace. The window now switches those actions off until a pair is open, and the
+empty viewport says what to open and how, rather than showing the same flat grey
+a comparison that found nothing would show. A control that is off reads as *not
+yet*; a control that is on and does nothing reads as broken.
+
+Everything reachable by a key is now also reachable by a button, and each button
+names its key in its tooltip, so the toolbar teaches the keyboard rather than
+replacing it.
+
 ## Windows
 
 The core cross-compiles to `x86_64-pc-windows-gnu` with the MinGW toolchain, and

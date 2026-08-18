@@ -32,6 +32,7 @@
 #include <QLabel>
 #include <QTest>
 #include <QScrollBar>
+#include <QToolBar>
 #include <QTreeWidget>
 
 static int failures = 0;
@@ -149,6 +150,22 @@ int main(int argc, char **argv) {
         auto *a = win.findChild<QAction *>(QString::fromLatin1(name));
         check(a && !a->isEnabled(),
               QStringLiteral("%1 is off until a pair is open").arg(QString::fromLatin1(name)));
+    }
+    // Every button in the bar has a picture and keeps its words. Half a toolbar
+    // in icons and half in text reads as unfinished, and an icon nobody drew is
+    // a blank square on the two platforms with no icon theme.
+    {
+        auto *bar = win.findChild<QToolBar *>(QStringLiteral("toolbar"));
+        check(bar != nullptr, QStringLiteral("the window has a toolbar"));
+        for (QAction *a : bar ? bar->actions() : QList<QAction *>()) {
+            if (a->isSeparator() || a->text().isEmpty()) {
+                continue; // a separator, or a control rather than a button
+            }
+            check(!a->icon().isNull(),
+                  QStringLiteral("%1 has an icon").arg(a->text()));
+            check(!a->icon().pixmap(24, 24).isNull(),
+                  QStringLiteral("%1's icon is drawn, not empty").arg(a->text()));
+        }
     }
     shot(&win, QStringLiteral("empty"));
 

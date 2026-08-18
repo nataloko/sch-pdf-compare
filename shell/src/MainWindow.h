@@ -60,10 +60,14 @@ class MainWindow : public QMainWindow {
 
   protected:
     void closeEvent(QCloseEvent *e) override;
+    // Watches for a palette change: the toolbar's pictures are drawn in the
+    // toolbar's own colours.
+    void changeEvent(QEvent *e) override;
 
   private:
     void buildMenus();
     void buildToolBar();
+    void refreshIcons();
     // Everything that needs a comparison open is switched off until there is
     // one, so a key or a button that does nothing looks like it does nothing
     // rather than looking broken.

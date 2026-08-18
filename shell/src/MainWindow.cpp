@@ -3,6 +3,7 @@
 
 #include "ColourDialog.h"
 #include "CompareView.h"
+#include "Icons.h"
 #include "Session.h"
 
 #include <QActionGroup>
@@ -219,6 +220,7 @@ void MainWindow::buildMenus() {
         ColourDialog d(m_session->colourOnlyA(), m_session->colourOnlyB(), this);
         if (d.exec() == QDialog::Accepted) {
             m_session->setColours(d.onlyA(), d.onlyB());
+            refreshIcons();
             persist();
         }
     });
@@ -297,13 +299,15 @@ void MainWindow::buildMenus() {
 }
 
 void MainWindow::buildToolBar() {
-    // Text, not icons: the four things this shows are words, there is no icon
-    // set that says "only the earlier revision", and a toolbar of guesses is
-    // worse than no toolbar. It exists so nothing here is reachable only by a
-    // key nobody was told about.
+    // Icons *and* text. The words were here first, on the grounds that no icon
+    // set says "only the earlier revision" — which is still true of every icon
+    // set there is, and is why these are drawn in `Icons.cpp` from the thing
+    // they stand for: the overlay button is a picture of the composition rule,
+    // in the reader's own two colours. Keeping the words next to them costs a
+    // little width and settles the guessing the old comment was worried about.
     auto *bar = addToolBar(tr("Comparison"));
     bar->setObjectName(QStringLiteral("toolbar"));
-    bar->setToolButtonStyle(Qt::ToolButtonTextOnly);
+    bar->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
     bar->setMovable(false);
     bar->addAction(findChild<QAction *>(QStringLiteral("open")));
     bar->addSeparator();
@@ -318,6 +322,22 @@ void MainWindow::buildToolBar() {
     bar->addSeparator();
     bar->addAction(m_excludeRegion);
 
+    // Shorter words on the buttons than in the menu, because the menu has room
+    // to say "Compare Two Files…" and a toolbar with eleven controls on it does
+    // not. The menu entry stays the long one: that is where a reader goes to
+    // find out what something is called.
+    struct Short {
+        const char *name;
+        QString text;
+    };
+    for (const Short &s : {Short{"open", tr("Open")}, Short{"prev", tr("Previous")},
+                           Short{"next", tr("Next")}, Short{"excludeRegion", tr("Exclude")},
+                           Short{"singlePage", tr("One sheet")}}) {
+        if (QAction *a = findChild<QAction *>(QString::fromLatin1(s.name))) {
+            a->setIconText(s.text);
+        }
+    }
+
     // The shortcut in the tooltip, so the toolbar teaches the keys rather than
     // replacing them.
     for (QAction *a : bar->actions()) {
@@ -325,6 +345,45 @@ void MainWindow::buildToolBar() {
             a->setToolTip(tr("%1  (%2)").arg(a->text().remove(QLatin1Char('&')),
                                              a->shortcut().toString(QKeySequence::NativeText)));
         }
+    }
+
+    refreshIcons();
+}
+
+/// Draws the toolbar's pictures for the colours in force.
+///
+/// Called again whenever those change, because two of the buttons stand for the
+/// two overlay colours and a reader who moved them away from red and green did
+/// so precisely because they cannot tell red from green.
+void MainWindow::refreshIcons() {
+    Icons::Look look;
+    look.ink = palette().buttonText().color();
+    look.onlyA = m_session ? m_session->colourOnlyA() : ColourDialog::defaultA();
+    look.onlyB = m_session ? m_session->colourOnlyB() : ColourDialog::defaultB();
+
+    auto set = [this](const char *name, const QIcon &icon) {
+        if (QAction *a = findChild<QAction *>(QString::fromLatin1(name))) {
+            a->setIcon(icon);
+        }
+    };
+    set("open", Icons::open(look));
+    set("onlyA", Icons::onlyA(look));
+    set("onlyB", Icons::onlyB(look));
+    set("overlay", Icons::overlay(look));
+    set("sideBySide", Icons::sideBySide(look));
+    set("singlePage", Icons::singlePage(look));
+    set("prev", Icons::previousChange(look));
+    set("next", Icons::nextChange(look));
+    set("excludeRegion", Icons::excludeRegion(look));
+}
+
+void MainWindow::changeEvent(QEvent *e) {
+    QMainWindow::changeEvent(e);
+    // The outlines are drawn in the toolbar's foreground colour, so a reader
+    // who switches their desktop to a dark theme while this is open would
+    // otherwise be left with black-on-black buttons.
+    if (e->type() == QEvent::PaletteChange) {
+        refreshIcons();
     }
 }
 
@@ -397,6 +456,8 @@ bool MainWindow::openPair(const QString &pathA, const QString &pathB) {
     m_acceptSuggestions->setEnabled(false);
     enableSessionActions(true);
     syncViewActions();
+    // The pair may have brought its own colours back with it.
+    refreshIcons();
     rebuildSheetList();
     updateStatus();
     // Nobody opens a comparison to look at sheet 1; they want to know which

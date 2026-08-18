@@ -139,6 +139,7 @@ endif()
 add_library(sc_shell STATIC
     src/ColourDialog.cpp
     src/CompareView.cpp
+    src/Icons.cpp
     src/MainWindow.cpp
     src/Session.cpp
 )

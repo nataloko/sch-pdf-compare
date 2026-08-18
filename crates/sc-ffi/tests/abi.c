@@ -73,6 +73,8 @@ static void null_session_is_survivable(void) {
     sc_session_set_view_mode(NULL, SC_VIEW_MODE_ONLY_A);
     check(sc_session_tolerance(NULL) == 0, "tolerance(NULL) is 0");
     sc_session_set_tolerance(NULL, 2);
+    check(sc_session_shared_ink(NULL) == 100, "shared_ink(NULL) is the full drawing");
+    sc_session_set_shared_ink(NULL, 40);
     check(sc_session_page_delta(NULL) == 0, "page_delta(NULL) is 0");
     sc_session_set_page_delta(NULL, 3);
 

@@ -438,6 +438,43 @@ pub unsafe extern "C" fn sc_session_set_tolerance(s: *mut ScSession, tolerance: 
     }
 }
 
+/// How strongly the overlay draws the artwork the two revisions agree on, 0 to
+/// 100.
+///
+/// 100 is the drawing as it was drawn, with the changes coloured on top. Lower
+/// fades the agreed ink towards white and leaves the differences at full
+/// strength, so at 0 the sheet is blank except for exactly what changed — which
+/// is how three small edits are found on a sheet of dense line work.
+///
+/// # Safety
+/// `s` must be null or a live session.
+#[no_mangle]
+pub unsafe extern "C" fn sc_session_shared_ink(s: *const ScSession) -> i32 {
+    match s.as_ref() {
+        Some(s) => s.inner.options().shared_ink,
+        None => sc_diff::SHARED_INK_FULL,
+    }
+}
+
+/// Clamped to 0..=100.
+///
+/// Every composed tile is drawn from this, so the cached ones are dropped. The
+/// scans are not: this changes how the comparison is painted, never what it
+/// found. A reader who fades the drawing away must still be told the same
+/// number of sheets changed.
+///
+/// # Safety
+/// `s` must be null or a live session.
+#[no_mangle]
+pub unsafe extern "C" fn sc_session_set_shared_ink(s: *mut ScSession, percent: i32) {
+    if let Some(s) = s.as_mut() {
+        let mut o = s.inner.options();
+        o.shared_ink = percent.clamp(0, sc_diff::SHARED_INK_FULL);
+        s.inner.set_options(o);
+        s.last_tile = None;
+    }
+}
+
 /// # Safety
 /// `s` must be null or a live session.
 #[no_mangle]

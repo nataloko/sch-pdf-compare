@@ -342,6 +342,33 @@ int32_t sc_session_tolerance(const ScSession *s);
 void sc_session_set_tolerance(ScSession *s, int32_t tolerance);
 
 /**
+ * How strongly the overlay draws the artwork the two revisions agree on, 0 to
+ * 100.
+ *
+ * 100 is the drawing as it was drawn, with the changes coloured on top. Lower
+ * fades the agreed ink towards white and leaves the differences at full
+ * strength, so at 0 the sheet is blank except for exactly what changed — which
+ * is how three small edits are found on a sheet of dense line work.
+ *
+ * # Safety
+ * `s` must be null or a live session.
+ */
+int32_t sc_session_shared_ink(const ScSession *s);
+
+/**
+ * Clamped to 0..=100.
+ *
+ * Every composed tile is drawn from this, so the cached ones are dropped. The
+ * scans are not: this changes how the comparison is painted, never what it
+ * found. A reader who fades the drawing away must still be told the same
+ * number of sheets changed.
+ *
+ * # Safety
+ * `s` must be null or a live session.
+ */
+void sc_session_set_shared_ink(ScSession *s, int32_t percent);
+
+/**
  * # Safety
  * `s` must be null or a live session.
  */

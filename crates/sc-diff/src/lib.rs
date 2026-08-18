@@ -78,6 +78,9 @@ pub const MAX_TOLERANCE: i32 = 8;
 /// something the reader discovers afterwards.
 pub const TOLERANCE_HIDES_MOVEMENT: i32 = 3;
 
+/// The unchanged drawing at full strength: black ink, as it was drawn.
+pub const SHARED_INK_FULL: i32 = 100;
+
 /// How an excluded region is drawn: its artwork kept at this strength, edged in
 /// this colour, so it reads as "not compared" rather than "nothing changed".
 pub const MASK_INK_PERCENT: i32 = 40;
@@ -100,6 +103,24 @@ pub struct Options {
     /// is sub-pixel rasterisation fringe, and without this the overlay is
     /// unreadable.
     pub tolerance: i32,
+    /// How strongly to draw the artwork the two revisions agree on, 0 to 100.
+    ///
+    /// 100 is the drawing as it was drawn, in black, with the changes coloured
+    /// on top of it — which is what a reviewer wants nearly all of the time,
+    /// because a change means nothing without the circuit around it.
+    ///
+    /// The other end is for the times it does not. On a dense sheet, three
+    /// small edits are three specks of colour in a page of black line work, and
+    /// the eye cannot sweep for them. Fading the agreed ink towards white
+    /// leaves the differences alone at full strength, so at 0 the sheet is
+    /// blank except for exactly what changed. It is the same trick as turning
+    /// the room lights down to see a single LED, and it is why this is a slider
+    /// and not a switch: partway down keeps enough of the drawing to say
+    /// *where* on the sheet the speck is.
+    ///
+    /// Only the overlay has anything to fade. A single-revision view is meant
+    /// to look exactly like opening that file.
+    pub shared_ink: i32,
 }
 
 impl Default for Options {
@@ -108,6 +129,7 @@ impl Default for Options {
             only_a: Rgb::new(0xd8, 0x10, 0x10),
             only_b: Rgb::new(0x00, 0x96, 0x28),
             tolerance: 1,
+            shared_ink: SHARED_INK_FULL,
         }
     }
 }

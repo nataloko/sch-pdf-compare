@@ -34,6 +34,7 @@ fn red_green() -> Options {
         only_a: Rgb::new(0xff, 0, 0),
         only_b: Rgb::new(0, 0xff, 0),
         tolerance: 0,
+        shared_ink: SHARED_INK_FULL,
     }
 }
 
@@ -379,10 +380,101 @@ fn the_ceiling_reaches_past_a_zoomed_in_fringe() {
         0,
         "asking for more than the ceiling is clamped, not refused"
     );
+    // A warning line at or above the ceiling could never be crossed, and the
+    // frontend would never say anything. Checked at compile time.
+    const {
+        assert!(TOLERANCE_HIDES_MOVEMENT < MAX_TOLERANCE);
+    }
+}
+
+#[test]
+fn fading_the_shared_ink_leaves_the_changes_alone() {
+    // The whole point of the control: on a dense sheet three small edits are
+    // three specks of colour in a page of black line work. Fading what the two
+    // revisions agree on empties the page around them without touching them —
+    // at 0 the sheet is blank except for exactly what changed.
+    let da = make_gray(3, 1, &[0x00, 0x00, 0xff]);
+    let db = make_gray(3, 1, &[0x00, 0xff, 0xff]);
+    let a = gray(&da, 3, 1);
+    let b = gray(&db, 3, 1);
+
+    let at = |pct: i32| {
+        compose(
+            Some(&a),
+            Some(&b),
+            Size::new(3, 1),
+            0,
+            ViewMode::Overlay,
+            &Options {
+                shared_ink: pct,
+                ..red_green()
+            },
+            None,
+        )
+        .expect("composes")
+    };
+
+    // Column 0 is drawn in both, column 1 only in A.
+    let full = at(SHARED_INK_FULL);
+    assert_eq!(full.bgr_at(0, 0), [0x00, 0x00, 0x00], "shared ink is black");
+    assert_eq!(full.bgr_at(1, 0), [0x00, 0x00, 0xff], "A alone is red");
+
+    let half = at(50);
+    let shared = half.bgr_at(0, 0);
     assert!(
-        TOLERANCE_HIDES_MOVEMENT < MAX_TOLERANCE,
-        "the warning line has to be reachable, or nothing is ever said"
+        shared.iter().all(|&v| (0x70..=0x90).contains(&v)),
+        "half way it is mid grey, and still neutral: {shared:?}"
     );
+    assert_eq!(
+        half.bgr_at(1, 0),
+        [0x00, 0x00, 0xff],
+        "the change does not fade"
+    );
+
+    let none = at(0);
+    assert_eq!(
+        none.bgr_at(0, 0),
+        [0xff, 0xff, 0xff],
+        "at zero the drawing is gone"
+    );
+    assert_eq!(
+        none.bgr_at(1, 0),
+        [0x00, 0x00, 0xff],
+        "and only the change is left"
+    );
+    assert_eq!(
+        none.bgr_at(2, 0),
+        [0xff, 0xff, 0xff],
+        "blank paper stays blank"
+    );
+
+    // The two spellings of the rule must not drift: the tile loop inlines what
+    // `compose_ink` documents, and only one of them is easy to read.
+    for pct in [0, 25, 50, 100] {
+        let o = Options {
+            shared_ink: pct,
+            ..red_green()
+        };
+        assert_eq!(
+            compose_ink(0xc0, 0, 0, &o),
+            {
+                let d = make_gray(1, 1, &[0x3f]);
+                let px = gray(&d, 1, 1);
+                compose(
+                    Some(&px),
+                    Some(&px),
+                    Size::new(1, 1),
+                    0,
+                    ViewMode::Overlay,
+                    &o,
+                    None,
+                )
+                .expect("composes")
+                .bgr_at(0, 0)
+            },
+            "compose_ink and the tile loop agree at {pct}%"
+        );
+    }
 }
 
 #[test]

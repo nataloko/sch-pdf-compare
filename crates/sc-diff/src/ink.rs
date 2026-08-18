@@ -1,6 +1,6 @@
 // Copyright (c) the sch-pdf-compare authors. AGPL-3.0-or-later; see LICENSE.
 
-use crate::{Options, PixelFormat, Pixels};
+use crate::{Options, PixelFormat, Pixels, SHARED_INK_FULL};
 
 /// How much ink a pixel carries: 0 for paper white, 255 for solid black.
 ///
@@ -30,9 +30,14 @@ fn ink_leaves(ink: u8, col: u8) -> u8 {
 /// cyan — identical at the four corners, wrong everywhere in between, which is
 /// where line art lives.
 ///
+/// `opts.shared_ink` fades the agreed coverage — and only that — towards white,
+/// so a sheet can be reduced to nothing but what changed on it. The two
+/// leftovers are never touched by it: fading the differences as well would be
+/// fading the answer.
+///
 /// Returns the pixel in the output buffer's byte order: blue, green, red.
 pub fn compose_ink(neutral: u8, only_a: u8, only_b: u8, opts: &Options) -> [u8; 3] {
-    let base = 255 - neutral as i32;
+    let base = 255 - shared_coverage(neutral, opts);
     let a_bgr = opts.only_a.bgr();
     let b_bgr = opts.only_b.bgr();
     let mut out = [0u8; 3];
@@ -42,6 +47,13 @@ pub fn compose_ink(neutral: u8, only_a: u8, only_b: u8, opts: &Options) -> [u8; 
         out[i] = ((v + 127) / 255) as u8;
     }
     out
+}
+
+/// The agreed coverage after the fade, which is what actually gets drawn as
+/// neutral ink. One definition, used by [`compose_ink`] and by the tile loop.
+pub(crate) fn shared_coverage(neutral: u8, opts: &Options) -> i32 {
+    let pct = opts.shared_ink.clamp(0, SHARED_INK_FULL);
+    (neutral as i32 * pct + SHARED_INK_FULL / 2) / SHARED_INK_FULL
 }
 
 /// Per-coverage channel factors, so the compose loop does lookups and multiplies

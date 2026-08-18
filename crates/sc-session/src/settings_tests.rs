@@ -59,6 +59,7 @@ fn options_round_trip_including_the_colours() {
         only_a: Rgb::new(0x00, 0x40, 0xff),
         only_b: Rgb::new(0xff, 0x80, 0x00),
         tolerance: 2,
+        shared_ink: 30,
     };
     s.set_options(o);
     s.save().expect("saves");
@@ -70,11 +71,10 @@ fn options_round_trip_including_the_colours() {
 fn a_tolerance_from_a_hand_edited_file_is_clamped() {
     // The file is meant to be hand-editable, so it will be hand-edited badly.
     let path = scratch("clamp");
-    std::fs::write(&path, r#"{"version":1,"tolerance":99}"#).expect("writes");
-    assert_eq!(
-        Settings::at(path.clone()).options().tolerance,
-        sc_diff::MAX_TOLERANCE
-    );
+    std::fs::write(&path, r#"{"version":1,"tolerance":99,"shared_ink":-5}"#).expect("writes");
+    let o = Settings::at(path.clone()).options();
+    assert_eq!(o.tolerance, sc_diff::MAX_TOLERANCE);
+    assert_eq!(o.shared_ink, 0);
     let _ = std::fs::remove_file(&path);
 }
 

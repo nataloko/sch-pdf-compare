@@ -1,6 +1,6 @@
 // Copyright (c) the sch-pdf-compare authors. AGPL-3.0-or-later; see LICENSE.
 
-use crate::ink::{dilate_ink, read_ink_plane, read_ink_row, InkTable};
+use crate::ink::{dilate_ink, read_ink_plane, read_ink_row, shared_coverage, InkTable};
 use crate::{
     Options, PixelFormat, Pixels, Point, Rect, Size, Tile, ViewMode, MASK_EDGE_COLOR,
     MASK_INK_PERCENT, MAX_TOLERANCE,
@@ -178,10 +178,13 @@ pub fn compose(
                 _ => {
                     let matched_a = ia[x].min(nb[x]);
                     let matched_b = ib[x].min(na[x]);
-                    let neutral = matched_a.max(matched_b) as i32;
+                    let neutral = matched_a.max(matched_b);
                     let fa = table.from_a[(ia[x] - matched_a) as usize];
                     let fb = table.from_b[(ib[x] - matched_b) as usize];
-                    let base = 255 - neutral;
+                    // Only the agreed coverage is faded; the two leftovers keep
+                    // their full strength, so turning this down empties the
+                    // sheet of everything except what changed on it.
+                    let base = 255 - shared_coverage(neutral, opts);
                     for i in 0..3 {
                         let v = ((base * fa[i] as i32 + 127) / 255) * fb[i] as i32;
                         o[i] = ((v + 127) / 255) as u8;

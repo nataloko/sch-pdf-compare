@@ -66,6 +66,8 @@ struct Data {
     version: u32,
     #[serde(default = "default_tolerance")]
     tolerance: i32,
+    #[serde(default = "default_shared_ink")]
+    shared_ink: i32,
     #[serde(default = "default_only_a")]
     only_a: String,
     #[serde(default = "default_only_b")]
@@ -79,6 +81,9 @@ struct Data {
 fn default_tolerance() -> i32 {
     Options::default().tolerance
 }
+fn default_shared_ink() -> i32 {
+    Options::default().shared_ink
+}
 fn default_only_a() -> String {
     hex(Options::default().only_a)
 }
@@ -91,6 +96,7 @@ impl Default for Data {
         Self {
             version: VERSION,
             tolerance: default_tolerance(),
+            shared_ink: default_shared_ink(),
             only_a: default_only_a(),
             only_b: default_only_b(),
             last_pair: None,
@@ -179,11 +185,13 @@ impl Settings {
             only_a: unhex(&self.data.only_a, d.only_a),
             only_b: unhex(&self.data.only_b, d.only_b),
             tolerance: self.data.tolerance.clamp(0, sc_diff::MAX_TOLERANCE),
+            shared_ink: self.data.shared_ink.clamp(0, sc_diff::SHARED_INK_FULL),
         }
     }
 
     pub fn set_options(&mut self, o: Options) {
         self.data.tolerance = o.tolerance;
+        self.data.shared_ink = o.shared_ink;
         self.data.only_a = hex(o.only_a);
         self.data.only_b = hex(o.only_b);
     }

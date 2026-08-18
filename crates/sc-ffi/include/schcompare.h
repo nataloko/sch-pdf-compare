@@ -76,6 +76,25 @@ typedef struct {
     float dy;
 } ScRectF;
 
+/**
+ * How the sweep is getting on.
+ *
+ * `finished` is the only field that makes `changed_sheets` mean anything;
+ * before that it is a running total.
+ */
+typedef struct {
+    bool running;
+    bool finished;
+    int32_t scanned;
+    int32_t total;
+    int32_t changed_sheets;
+    /**
+     * Regions that recur across the set, waiting to be offered. Only ever
+     * meaningful once `finished`.
+     */
+    int32_t suggested;
+} ScSweepStatus;
+
 #define SC_OK 0
 
 /**
@@ -322,6 +341,73 @@ ScStatus sc_session_change(const ScSession *s,
                            int32_t page_no,
                            size_t index,
                            ScRectF *out);
+
+/**
+ * Starts scanning every sheet on a worker thread.
+ *
+ * The frontend should watch [`sc_session_wakeup_handle`] and call
+ * [`sc_session_pump`] when it signals. Nothing is ever called back on the
+ * worker thread.
+ *
+ * # Safety
+ * `s` must be null or a live session.
+ */
+ScStatus sc_session_start_sweep(ScSession *s);
+
+/**
+ * Stops the sweep and waits for its thread. Safe to call when none is running.
+ *
+ * # Safety
+ * `s` must be null or a live session.
+ */
+void sc_session_stop_sweep(ScSession *s);
+
+/**
+ * The handle to watch: a file descriptor on Unix, an event handle on Windows.
+ *
+ * −1 when no sweep is running. Valid only until the sweep is stopped or the
+ * session is freed, so a frontend must drop its notifier before either.
+ *
+ * # Safety
+ * `s` must be null or a live session.
+ */
+int64_t sc_session_wakeup_handle(const ScSession *s);
+
+/**
+ * Collects whatever the sweep has finished and clears the wakeup.
+ *
+ * Call this when the handle signals, and once more after `finished` shows up
+ * so the last sheets are collected. Doing the work here, on the caller's
+ * thread, is the point: the sweep never touches the frontend's data.
+ *
+ * # Safety
+ * `s` must be null or a live session.
+ */
+ScStatus sc_session_pump(ScSession *s);
+
+/**
+ * # Safety
+ * `s` must be null or a live session; `out` must be writable.
+ */
+ScStatus sc_session_sweep_status(const ScSession *s, ScSweepStatus *out);
+
+/**
+ * How many recurring regions the finished sweep would offer to exclude.
+ *
+ * Offered, never applied: a net renamed across the whole set looks exactly like
+ * a changed title-block date, and hiding that silently is the worst failure
+ * this tool could have.
+ *
+ * # Safety
+ * `s` must be null or a live session.
+ */
+int32_t sc_session_suggested_count(const ScSession *s);
+
+/**
+ * # Safety
+ * `s` must be null or a live session; `out` must be writable.
+ */
+ScStatus sc_session_suggested(const ScSession *s, size_t index, ScRectF *out);
 
 #ifdef __cplusplus
 }  // extern "C"

@@ -1,12 +1,110 @@
 // Copyright (c) the sch-pdf-compare authors. AGPL-3.0-or-later; see LICENSE.
 #include "Session.h"
 
+#ifdef Q_OS_WIN
+#include <QWinEventNotifier>
+#else
+#include <QSocketNotifier>
+#endif
+
 Session::Session(ScSession *s, QString pathA, QString pathB, QObject *parent)
     : QObject(parent), m_s(s), m_pathA(std::move(pathA)), m_pathB(std::move(pathB)) {
 }
 
 Session::~Session() {
+    // Order matters: the notifier watches a handle the sweep owns, and the
+    // sweep's thread holds its own documents. Tear down outside-in.
+    stopSweep();
     sc_session_free(m_s);
+}
+
+void Session::dropNotifier() {
+    if (!m_notifier) {
+        return;
+    }
+    // Disabled first and deleted later, never `delete` outright: this is called
+    // from inside the notifier's own activated slot when the sweep finishes,
+    // and destroying the object that is currently emitting cuts the emission
+    // short — which cost the last sheet of every sweep and left the status line
+    // reading "scanning 20 of 21" forever.
+    m_notifier->setEnabled(false);
+    m_notifier->deleteLater();
+    m_notifier = nullptr;
+}
+
+void Session::startSweep() {
+    stopSweep();
+    if (sc_session_start_sweep(m_s) < 0) {
+        return;
+    }
+    const int64_t h = sc_session_wakeup_handle(m_s);
+    if (h < 0) {
+        return;
+    }
+#ifdef Q_OS_WIN
+    auto *n = new QWinEventNotifier(reinterpret_cast<Qt::HANDLE>(h), this);
+    connect(n, &QWinEventNotifier::activated, this, &Session::onWakeup);
+#else
+    auto *n = new QSocketNotifier(int(h), QSocketNotifier::Read, this);
+    connect(n, &QSocketNotifier::activated, this, &Session::onWakeup);
+#endif
+    m_notifier = n;
+    // The sweep may already have finished a sheet before the notifier existed,
+    // and a wakeup delivered into that gap is simply gone. One read now covers
+    // it; every later one is driven by the handle.
+    onWakeup();
+}
+
+void Session::stopSweep() {
+    dropNotifier();
+    sc_session_stop_sweep(m_s);
+}
+
+void Session::onWakeup() {
+    // Collect on this thread, then tell the window. The sweep never touches
+    // anything the UI owns.
+    const ScStatus st = sc_session_pump(m_s);
+    if (qEnvironmentVariableIsSet("SC_DEBUG_SWEEP")) {
+        const ScSweepStatus d = sweepStatus();
+        fprintf(stderr, "[wake] pump=%d scanned=%d/%d running=%d finished=%d notifier=%p\n",
+                st, d.scanned, d.total, int(d.running), int(d.finished), (void *)m_notifier);
+    }
+    if (st == SC_OK) {
+        // Finished. Nothing more will signal, so stop watching a handle that is
+        // about to go away.
+        dropNotifier();
+    }
+    emit sweepProgressed();
+}
+
+void Session::pumpForTest() {
+    onWakeup();
+}
+
+ScSweepStatus Session::sweepStatus() const {
+    ScSweepStatus s{};
+    sc_session_sweep_status(m_s, &s);
+    return s;
+}
+
+bool Session::sweepCollected() const {
+    // The notifier is dropped by `onWakeup` exactly when the pump reports that
+    // it has taken the last results and the sweep is done, so its absence is
+    // the collection having happened.
+    return sweepStatus().finished && m_notifier == nullptr;
+}
+
+QVector<QRectF> Session::suggestedRegions() const {
+    QVector<QRectF> out;
+    const int n = sc_session_suggested_count(m_s);
+    out.reserve(n);
+    for (int i = 0; i < n; i++) {
+        ScRectF r;
+        if (sc_session_suggested(m_s, size_t(i), &r) == SC_OK) {
+            out.append(QRectF(r.x, r.y, r.dx, r.dy));
+        }
+    }
+    return out;
 }
 
 Session *Session::open(const QString &pathA, const QString &pathB, QString *error,

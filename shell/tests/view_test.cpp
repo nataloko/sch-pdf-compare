@@ -38,6 +38,24 @@ static void shot(QWidget *w, const QString &name) {
     w->grab().save(QDir(writeDir).filePath(name + ".png"));
 }
 
+// Spins the event loop until the sweep has finished *and* the window has
+// collected it. The sweep is driven by a wakeup handle the event loop watches,
+// so this is a real wait on real machinery, not a sleep.
+//
+// Waiting on `finished` alone is a race, and it was one: the worker sets that
+// flag before the event loop has delivered the wakeup that rebuilds the
+// sidebar, so two runs in three found 20 sheets listed and a status line still
+// reading "scanning 20 of 21".
+static bool waitForSweep(Session *s) {
+    for (int i = 0; i < 600; i++) {
+        if (s->sweepCollected()) {
+            return true;
+        }
+        QTest::qWait(50);
+    }
+    return false;
+}
+
 static QString sample(const QString &name) {
     const QString p = QFileInfo(QStringLiteral(SC_SOURCE_DIR "/../../samples/") + name).absoluteFilePath();
     return QFileInfo::exists(p) ? p : QString();
@@ -83,13 +101,17 @@ int main(int argc, char **argv) {
           QStringLiteral("overlay is the default view"));
     shot(&win, QStringLiteral("opened"));
 
-    // Scanning every sheet fills the sidebar. This set shares a title block
+    // Opening starts the sweep by itself; it fills the sidebar as it goes and
+    // the window stays responsive throughout. This set shares a title block
     // whose date changed, so every sheet reports something — which is exactly
     // why excluded regions exist.
-    win.findChild<QAction *>(QStringLiteral("scanAll"))->trigger();
-    QTest::qWait(50);
+    check(view->session()->sweepStatus().running || view->session()->sweepStatus().finished,
+          QStringLiteral("opening a pair starts the sweep"));
+    check(waitForSweep(view->session()), QStringLiteral("the sweep finishes"));
     check(sheets->topLevelItemCount() == 21,
           QStringLiteral("every sheet is listed, got %1").arg(sheets->topLevelItemCount()));
+    check(status->text().contains(QStringLiteral("21 sheets changed")),
+          QStringLiteral("and the status line says so: '%1'").arg(status->text()));
     shot(&win, QStringLiteral("scanned"));
 
     // Stepping through changes moves the reader without touching their zoom.
@@ -118,13 +140,18 @@ int main(int argc, char **argv) {
     win.findChild<QAction *>(QStringLiteral("overlay"))->trigger();
     QTest::qWait(20);
 
-    // Excluding the title block has to take sheets off the list, and say so.
+    // The finished sweep should have spotted the title block and be offering
+    // it — offering, with the menu item enabled, not applying it.
     Session *s = view->session();
-    const QSizeF pt = s->pageSize(1);
-    s->addIgnoreRect(QRectF(pt.width() * 0.70, pt.height() * 0.88, pt.width() * 0.30,
-                            pt.height() * 0.12));
-    win.findChild<QAction *>(QStringLiteral("scanAll"))->trigger();
-    QTest::qWait(50);
+    auto *accept = win.findChild<QAction *>(QStringLiteral("acceptSuggestions"));
+    check(accept->isEnabled(), QStringLiteral("a repeating region is offered"));
+    check(s->ignoreRects().isEmpty(), QStringLiteral("and nothing is excluded yet"));
+    check(status->text().contains(QStringLiteral("repeat")),
+          QStringLiteral("the status line mentions it: '%1'").arg(status->text()));
+
+    // Accepting it has to take sheets off the list, and say so.
+    win.applySuggestions();
+    check(waitForSweep(s), QStringLiteral("the sweep runs again after excluding"));
     check(sheets->topLevelItemCount() < 21,
           QStringLiteral("excluding the title block clears sheets, %1 left")
               .arg(sheets->topLevelItemCount()));

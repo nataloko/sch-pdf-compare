@@ -8,6 +8,7 @@
 
 class CompareView;
 class QLabel;
+class QAction;
 class QTreeWidget;
 class Session;
 
@@ -27,6 +28,16 @@ class MainWindow : public QMainWindow {
     void onCurrentPageChanged(int page);
     void onRegionSelected(int page, const QRectF &r);
     void scanEverySheet();
+    void onSweepProgressed();
+    void acceptSuggestions();
+
+  public:
+    // The half of `acceptSuggestions` that does the work, without the question.
+    // Split out so a test exercises the real behaviour rather than a modal
+    // dialog, and so the question stays purely a question.
+    void applySuggestions();
+
+  private slots:
     void stepChange(int direction);
     void nudgePairing(int by);
     void nudgeTolerance(int by);
@@ -48,4 +59,5 @@ class MainWindow : public QMainWindow {
     // The change the reader is standing on, as (sheet, index).
     int m_atSheet = 0;
     int m_atIndex = -1;
+    QAction *m_acceptSuggestions = nullptr;
 };

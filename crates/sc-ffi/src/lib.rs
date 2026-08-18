@@ -18,7 +18,7 @@ use std::ffi::{c_char, CStr, CString};
 
 use sc_diff::{RectF, ViewMode};
 use sc_render::Tile as RenderTile;
-use sc_session::{Session, SheetChanges};
+use sc_session::{suggest_ignores, Session, SheetChanges, Sweep};
 
 /// 0 is success. Every failure is negative, so `if (status < 0)` is the whole
 /// check a caller needs.
@@ -170,6 +170,12 @@ pub struct ScSession {
     /// documents its result as good only until the next call.
     last_tile: Option<sc_diff::Tile>,
     scans: HashMap<i32, SheetChanges>,
+    sweep: Option<Sweep>,
+    /// Everything the sweep has handed over, in the order it arrived. Kept
+    /// alongside `scans` because the repeat detector wants the whole set, and
+    /// asking it a question from half a sweep is a different question.
+    swept: Vec<SheetChanges>,
+    suggested: Vec<RectF>,
 }
 
 /// Opens two revisions for comparison.
@@ -191,6 +197,9 @@ pub unsafe extern "C" fn sc_session_open(
             inner,
             last_tile: None,
             scans: HashMap::new(),
+            sweep: None,
+            swept: Vec::new(),
+            suggested: Vec::new(),
         })),
         Err(e) => {
             fail(e);
@@ -381,7 +390,7 @@ pub unsafe extern "C" fn sc_session_set_tolerance(s: *mut ScSession, tolerance: 
         let mut o = s.inner.options();
         o.tolerance = tolerance.clamp(0, sc_diff::MAX_TOLERANCE);
         s.inner.set_options(o);
-        s.scans.clear();
+        s.reset_scans();
     }
 }
 
@@ -405,7 +414,7 @@ pub unsafe extern "C" fn sc_session_page_delta(s: *const ScSession) -> i32 {
 pub unsafe extern "C" fn sc_session_set_page_delta(s: *mut ScSession, delta: i32) {
     if let Some(s) = s.as_mut() {
         s.inner.set_page_delta(delta);
-        s.scans.clear();
+        s.reset_scans();
     }
 }
 
@@ -424,7 +433,7 @@ pub unsafe extern "C" fn sc_session_add_ignore_rect(
 ) {
     if let Some(s) = s.as_mut() {
         s.inner.add_ignore_rect(RectF::new(x, y, dx, dy));
-        s.scans.clear();
+        s.reset_scans();
     }
 }
 
@@ -434,7 +443,7 @@ pub unsafe extern "C" fn sc_session_add_ignore_rect(
 pub unsafe extern "C" fn sc_session_clear_ignore_rects(s: *mut ScSession) {
     if let Some(s) = s.as_mut() {
         s.inner.clear_ignore_rects();
-        s.scans.clear();
+        s.reset_scans();
     }
 }
 
@@ -539,6 +548,187 @@ pub unsafe extern "C" fn sc_session_change(
             SC_OK
         }
         None => invalid("that sheet has no such change, or has not been scanned"),
+    }
+}
+
+impl ScSession {
+    /// Everything cached about the comparison is about the settings that were
+    /// in force when it was computed, so a change to any of them throws the lot
+    /// away — including a sweep that is still running and would otherwise
+    /// deliver answers to a question nobody asked any more.
+    fn reset_scans(&mut self) {
+        if let Some(mut sweep) = self.sweep.take() {
+            sweep.stop();
+        }
+        self.scans.clear();
+        self.swept.clear();
+        self.suggested.clear();
+    }
+}
+
+/// How the sweep is getting on.
+///
+/// `finished` is the only field that makes `changed_sheets` mean anything;
+/// before that it is a running total.
+#[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
+#[repr(C)]
+pub struct ScSweepStatus {
+    pub running: bool,
+    pub finished: bool,
+    pub scanned: i32,
+    pub total: i32,
+    pub changed_sheets: i32,
+    /// Regions that recur across the set, waiting to be offered. Only ever
+    /// meaningful once `finished`.
+    pub suggested: i32,
+}
+
+/// Starts scanning every sheet on a worker thread.
+///
+/// The frontend should watch [`sc_session_wakeup_handle`] and call
+/// [`sc_session_pump`] when it signals. Nothing is ever called back on the
+/// worker thread.
+///
+/// # Safety
+/// `s` must be null or a live session.
+#[no_mangle]
+pub unsafe extern "C" fn sc_session_start_sweep(s: *mut ScSession) -> ScStatus {
+    let Some(s) = s.as_mut() else {
+        return invalid("a live session is required");
+    };
+    if let Some(mut old) = s.sweep.take() {
+        old.stop();
+    }
+    s.swept.clear();
+    s.suggested.clear();
+    match s.inner.start_sweep() {
+        Some(sw) => {
+            s.sweep = Some(sw);
+            SC_OK
+        }
+        None => invalid("this platform would not give us a wakeup object"),
+    }
+}
+
+/// Stops the sweep and waits for its thread. Safe to call when none is running.
+///
+/// # Safety
+/// `s` must be null or a live session.
+#[no_mangle]
+pub unsafe extern "C" fn sc_session_stop_sweep(s: *mut ScSession) {
+    if let Some(s) = s.as_mut() {
+        if let Some(mut sw) = s.sweep.take() {
+            sw.stop();
+        }
+    }
+}
+
+/// The handle to watch: a file descriptor on Unix, an event handle on Windows.
+///
+/// −1 when no sweep is running. Valid only until the sweep is stopped or the
+/// session is freed, so a frontend must drop its notifier before either.
+///
+/// # Safety
+/// `s` must be null or a live session.
+#[no_mangle]
+pub unsafe extern "C" fn sc_session_wakeup_handle(s: *const ScSession) -> i64 {
+    match s.as_ref().and_then(|s| s.sweep.as_ref()) {
+        Some(sw) => sw.wakeup_handle() as i64,
+        None => -1,
+    }
+}
+
+/// Collects whatever the sweep has finished and clears the wakeup.
+///
+/// Call this when the handle signals, and once more after `finished` shows up
+/// so the last sheets are collected. Doing the work here, on the caller's
+/// thread, is the point: the sweep never touches the frontend's data.
+///
+/// # Safety
+/// `s` must be null or a live session.
+#[no_mangle]
+pub unsafe extern "C" fn sc_session_pump(s: *mut ScSession) -> ScStatus {
+    let Some(s) = s.as_mut() else {
+        return invalid("a live session is required");
+    };
+    let Some(sweep) = s.sweep.as_ref() else {
+        return SC_OK;
+    };
+    for r in sweep.take_results() {
+        s.scans.insert(r.page_no, r.clone());
+        s.swept.push(r);
+    }
+    let status = sweep.status();
+    if status.finished && s.suggested.is_empty() {
+        s.suggested = suggest_ignores(&s.swept, s.inner.page_count());
+    }
+    if status.finished {
+        SC_OK
+    } else {
+        SC_PENDING
+    }
+}
+
+/// # Safety
+/// `s` must be null or a live session; `out` must be writable.
+#[no_mangle]
+pub unsafe extern "C" fn sc_session_sweep_status(
+    s: *const ScSession,
+    out: *mut ScSweepStatus,
+) -> ScStatus {
+    let (Some(s), false) = (s.as_ref(), out.is_null()) else {
+        return invalid("a live session and a writable status are required");
+    };
+    *out = match s.sweep.as_ref() {
+        Some(sw) => {
+            let st = sw.status();
+            ScSweepStatus {
+                running: st.running,
+                finished: st.finished,
+                scanned: st.scanned,
+                total: st.total,
+                changed_sheets: st.changed_sheets,
+                suggested: s.suggested.len() as i32,
+            }
+        }
+        None => ScSweepStatus::default(),
+    };
+    SC_OK
+}
+
+/// How many recurring regions the finished sweep would offer to exclude.
+///
+/// Offered, never applied: a net renamed across the whole set looks exactly like
+/// a changed title-block date, and hiding that silently is the worst failure
+/// this tool could have.
+///
+/// # Safety
+/// `s` must be null or a live session.
+#[no_mangle]
+pub unsafe extern "C" fn sc_session_suggested_count(s: *const ScSession) -> i32 {
+    match s.as_ref() {
+        Some(s) => s.suggested.len() as i32,
+        None => 0,
+    }
+}
+
+/// # Safety
+/// `s` must be null or a live session; `out` must be writable.
+#[no_mangle]
+pub unsafe extern "C" fn sc_session_suggested(
+    s: *const ScSession,
+    index: usize,
+    out: *mut ScRectF,
+) -> ScStatus {
+    let (Some(s), false) = (s.as_ref(), out.is_null()) else {
+        return invalid("a live session and a writable rectangle are required");
+    };
+    match s.suggested.get(index) {
+        Some(r) => {
+            *out = (*r).into();
+            SC_OK
+        }
+        None => invalid("no suggested region with that index"),
     }
 }
 

@@ -78,6 +78,15 @@ static void null_session_is_survivable(void) {
           "change_count(NULL) is -1, meaning not scanned");
     check(sc_session_ignored_count(NULL, 1) == -1, "ignored_count(NULL) is -1");
     check(sc_session_change(NULL, 1, 0, &r) < 0, "change(NULL) fails");
+
+    ScSweepStatus sw;
+    check(sc_session_start_sweep(NULL) < 0, "start_sweep(NULL) fails");
+    sc_session_stop_sweep(NULL); /* a no-op, not a crash */
+    check(sc_session_wakeup_handle(NULL) == -1, "wakeup_handle(NULL) is -1");
+    check(sc_session_pump(NULL) < 0, "pump(NULL) fails");
+    check(sc_session_sweep_status(NULL, &sw) < 0, "sweep_status(NULL) fails");
+    check(sc_session_suggested_count(NULL) == 0, "suggested_count(NULL) is 0");
+    check(sc_session_suggested(NULL, 0, &r) < 0, "suggested(NULL) fails");
 }
 
 static void null_out_params_are_survivable(void) {
@@ -88,6 +97,8 @@ static void null_out_params_are_survivable(void) {
     check(sc_session_tile(NULL, 1, 1.0f, 0, 0, 8, 8, NULL) < 0, "tile with a null out fails");
     check(sc_session_change(NULL, 1, 0, NULL) < 0, "change with a null out fails");
     check(sc_session_ignore_rect(NULL, 0, NULL) < 0, "ignore_rect with a null out fails");
+    check(sc_session_sweep_status(NULL, NULL) < 0, "sweep_status with a null out fails");
+    check(sc_session_suggested(NULL, 0, NULL) < 0, "suggested with a null out fails");
 }
 
 static void a_failure_leaves_a_sentence_behind(void) {

@@ -18,6 +18,14 @@ extern "C" {
 #include "schcompare.h"
 }
 
+#ifdef Q_OS_WIN
+class QWinEventNotifier;
+using WakeupNotifier = QWinEventNotifier;
+#else
+class QSocketNotifier;
+using WakeupNotifier = QSocketNotifier;
+#endif
+
 class Session : public QObject {
     Q_OBJECT
 
@@ -65,16 +73,46 @@ class Session : public QObject {
     int ignoredCount(int page) const;
     QRectF change(int page, int index) const;
 
+    // Starts scanning every sheet on a worker thread. Progress arrives as
+    // signals, driven by the core's wakeup handle — there is no timer in this.
+    void startSweep();
+    void stopSweep();
+    ScSweepStatus sweepStatus() const;
+    // True once the sweep has finished *and* its last sheets have been
+    // collected on this thread.
+    //
+    // Not the same as `sweepStatus().finished`, which is the worker's view.
+    // Between the two the results exist but nothing on screen has been rebuilt
+    // from them, and anything that reads the sidebar in that gap sees the
+    // second-to-last answer.
+    bool sweepCollected() const;
+    // Regions that recur across the set. Offered, never applied.
+    QVector<QRectF> suggestedRegions() const;
+
+    // Drives one collection by hand, for tests that must not race the loop.
+    void pumpForTest();
+
     QString lastError() const;
 
   signals:
+    // A sheet's scan arrived, or the sweep finished. Cheap; fires per sheet.
+    void sweepProgressed();
     // The model changed and everything drawn from it is stale.
     void invalidated();
 
   private:
     explicit Session(ScSession *s, QString pathA, QString pathB, QObject *parent);
 
+  private slots:
+    void onWakeup();
+
+  private:
+    void dropNotifier();
+
     ScSession *m_s = nullptr;
     QString m_pathA;
     QString m_pathB;
+    // Watches the core's wakeup handle. Must not outlive the sweep that owns
+    // the handle, which is why stopping the sweep drops this first.
+    WakeupNotifier *m_notifier = nullptr;
 };

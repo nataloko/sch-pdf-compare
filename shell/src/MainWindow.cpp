@@ -11,7 +11,6 @@
 #include <QLabel>
 #include <QMenuBar>
 #include <QMessageBox>
-#include <QProgressDialog>
 #include <QStatusBar>
 #include <QTreeWidget>
 
@@ -100,6 +99,10 @@ void MainWindow::buildMenus() {
     cmp->addSeparator();
     cmp->addAction(tr("Scan &Every Sheet"), this, &MainWindow::scanEverySheet)
         ->setObjectName(QStringLiteral("scanAll"));
+    m_acceptSuggestions =
+        cmp->addAction(tr("Exclude &Suggested Regions"), this, &MainWindow::acceptSuggestions);
+    m_acceptSuggestions->setObjectName(QStringLiteral("acceptSuggestions"));
+    m_acceptSuggestions->setEnabled(false);
     cmp->addSeparator();
     QAction *sr = cmp->addAction(tr("Shift Pairing &Right"), this, [this] { nudgePairing(1); });
     sr->setObjectName(QStringLiteral("shiftRight"));
@@ -142,13 +145,18 @@ bool MainWindow::openPair(const QString &pathA, const QString &pathB) {
         rebuildSheetList();
         updateStatus();
     });
+    connect(m_session, &Session::sweepProgressed, this, &MainWindow::onSweepProgressed);
     m_view->setSession(m_session);
     setWindowTitle(tr("%1 vs %2 — sch-pdf-compare")
                        .arg(QFileInfo(pathA).fileName(), QFileInfo(pathB).fileName()));
     m_atSheet = 0;
     m_atIndex = -1;
+    m_acceptSuggestions->setEnabled(false);
     rebuildSheetList();
     updateStatus();
+    // Nobody opens a comparison to look at sheet 1; they want to know which
+    // sheets changed. Start finding out immediately.
+    m_session->startSweep();
     return true;
 }
 
@@ -227,22 +235,57 @@ void MainWindow::onRegionSelected(int page, const QRectF &r) {
 }
 
 void MainWindow::scanEverySheet() {
+    if (m_session) {
+        m_session->startSweep();
+        updateStatus();
+    }
+}
+
+void MainWindow::onSweepProgressed() {
+    rebuildSheetList();
+    const ScSweepStatus st = m_session ? m_session->sweepStatus() : ScSweepStatus{};
+    // Only offer once the sweep has actually reached the end. A suggestion from
+    // half a set is an offer to hide whatever was scanned first.
+    m_acceptSuggestions->setEnabled(st.finished && st.suggested > 0);
+    updateStatus();
+}
+
+void MainWindow::acceptSuggestions() {
     if (!m_session) {
         return;
     }
-    const int n = m_session->pageCount();
-    QProgressDialog p(tr("Scanning every sheet…"), tr("Stop"), 0, n, this);
-    p.setWindowModality(Qt::WindowModal);
-    for (int i = 1; i <= n; i++) {
-        p.setValue(i - 1);
-        if (p.wasCanceled()) {
-            break;
-        }
-        m_session->scanPage(i);
+    const QVector<QRectF> offered = m_session->suggestedRegions();
+    if (offered.isEmpty()) {
+        return;
     }
-    p.setValue(n);
-    rebuildSheetList();
-    updateStatus();
+    // Say what is about to stop being compared, and let the reader decline. The
+    // whole reason this is a suggestion and not a rule is that a net renamed
+    // across every sheet looks exactly like a title-block date that moved.
+    const auto answer = QMessageBox::question(
+        this, tr("Exclude repeating regions?"),
+        tr("%1 change on most sheets, which usually means a title block. "
+           "Excluding them stops them being compared on every sheet.\n\n"
+           "If a net was renamed across the whole set it would look the same, so "
+           "check before accepting.")
+            .arg(offered.size() == 1 ? tr("One region") 
+                                     : tr("%1 regions").arg(offered.size())),
+        QMessageBox::Yes | QMessageBox::No, QMessageBox::No);
+    if (answer != QMessageBox::Yes) {
+        return;
+    }
+    applySuggestions();
+}
+
+void MainWindow::applySuggestions() {
+    if (!m_session) {
+        return;
+    }
+    const QVector<QRectF> offered = m_session->suggestedRegions();
+    for (const QRectF &r : offered) {
+        m_session->addIgnoreRect(r);
+    }
+    // The exclusions changed every answer, so the sweep starts again.
+    m_session->startSweep();
 }
 
 void MainWindow::rebuildSheetList() {
@@ -336,13 +379,33 @@ void MainWindow::updateStatus() {
         text += tr("   pairing %1%2").arg(m_session->pageDelta() > 0 ? "+" : "").arg(
             m_session->pageDelta());
     }
-    text += n < 0 ? tr("   not scanned") : tr("   %n change(s) here", nullptr, n);
+    const ScSweepStatus sw = m_session->sweepStatus();
+    if (sw.running) {
+        text += tr("   scanning %1 of %2").arg(sw.scanned).arg(sw.total);
+    } else if (sw.finished) {
+        text += QStringLiteral("   ") + (sw.changed_sheets == 1
+                                             ? tr("1 sheet changed")
+                                             : tr("%1 sheets changed").arg(sw.changed_sheets));
+        if (sw.suggested > 0) {
+            text += QStringLiteral("   ") + (sw.suggested == 1
+                                                 ? tr("1 region repeats")
+                                                 : tr("%1 regions repeat").arg(sw.suggested));
+        }
+    }
+    if (n < 0) {
+        text += tr("   not scanned");
+    } else {
+        text += QStringLiteral("   ") +
+                (n == 1 ? tr("1 change here") : tr("%1 changes here").arg(n));
+    }
     if (ignored > 0) {
-        text += tr("   %n excluded", nullptr, ignored);
+        text += QStringLiteral("   ") + tr("%1 excluded").arg(ignored);
     }
     const int rects = m_session->ignoreRects().size();
     if (rects > 0) {
-        text += tr("   %n excluded region(s)", nullptr, rects);
+        text += QStringLiteral("   ") + (rects == 1
+                                             ? tr("1 excluded region")
+                                             : tr("%1 excluded regions").arg(rects));
     }
     if (m_atIndex >= 0) {
         text += tr("   at change %1 of sheet %2").arg(m_atIndex + 1).arg(m_atSheet);

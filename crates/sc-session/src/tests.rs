@@ -361,3 +361,69 @@ fn a_partial_sweep_offers_nothing() {
     let few: Vec<_> = (1..=5).map(|p| s.scan_page(p).expect("scans")).collect();
     assert!(suggest_ignores(&few, s.page_count()).is_empty());
 }
+
+#[test]
+fn automatic_matching_lines_up_the_real_sets() {
+    // Every sample pair is in order and the same length, so the right answer is
+    // the identity — which is exactly what makes it a good check: anything
+    // clever enough to reorder them is too clever.
+    for (a, b, n) in [
+        (A10, B03, 21),
+        (A10, D02, 21),
+        (SECOND_A07, SECOND_B02, 85),
+    ] {
+        let Some(mut s) = session(a, b) else { return };
+        let t0 = std::time::Instant::now();
+        s.auto_match().expect("matches");
+        let took = t0.elapsed();
+
+        assert!(
+            s.pairing_is_automatic(),
+            "{a}: the pairing is a content match"
+        );
+        assert_eq!(s.page_count(), n, "{a}: no sheet invented or lost");
+        for p in 1..=n {
+            let pair = s.pair(p);
+            assert_eq!(
+                (pair.page_a, pair.page_b),
+                (p, p),
+                "{a} vs {b}: sheet {p} matched to {pair:?}"
+            );
+        }
+        // Text only, nothing rendered. If this ever costs seconds it has stopped
+        // being something to run on open.
+        assert!(took.as_secs_f32() < 10.0, "{a}: matching took {took:?}");
+    }
+}
+
+#[test]
+fn automatic_matching_survives_a_different_pdf_producer() {
+    // REV-P3 is Microsoft Print to PDF with CID TrueType fonts where REV-P2 is
+    // Ghostscript with subset Type1C. If the signature depended on how the text
+    // was encoded rather than what it says, this is where it would show.
+    let Some(mut s) = session(B03, D02) else {
+        return;
+    };
+    s.auto_match().expect("matches");
+    for p in 1..=21 {
+        assert_eq!((s.pair(p).page_a, s.pair(p).page_b), (p, p), "sheet {p}");
+    }
+}
+
+#[test]
+fn nudging_the_delta_replaces_an_automatic_match() {
+    // The two mechanisms must not silently compose: an offset on top of a
+    // content match is nudging an answer, and the reader could not tell which
+    // they were looking at.
+    let Some(mut s) = session(A10, B03) else {
+        return;
+    };
+    s.auto_match().expect("matches");
+    assert!(s.pairing_is_automatic());
+    s.set_page_delta(1);
+    assert!(
+        !s.pairing_is_automatic(),
+        "a manual nudge takes the pairing back"
+    );
+    assert_eq!(s.pair(1).page_a, 0, "and behaves like a plain offset again");
+}

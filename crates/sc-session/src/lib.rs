@@ -10,6 +10,7 @@
 // `unsafe` block anywhere but that module is a compile error.
 #![deny(unsafe_code)]
 
+mod matching;
 mod scan;
 mod sweep;
 mod tile;
@@ -79,8 +80,20 @@ impl Session {
 
     /// Nudges which sheet of B lines up with which sheet of A. The scan cache is
     /// the caller's to drop; every cached answer is about the old pairing.
+    ///
+    /// This replaces an automatic match if there is one: an offset applied on
+    /// top of a content match would be nudging an answer rather than a guess,
+    /// and the reader would have no way to tell which they were looking at.
     pub fn set_page_delta(&mut self, delta: i32) {
         self.pairing = Pairing::build(self.doc_a.page_count(), self.doc_b.page_count(), delta);
+    }
+
+    pub(crate) fn set_pairing(&mut self, p: Pairing) {
+        self.pairing = p;
+    }
+
+    pub(crate) fn pairing_ref(&self) -> &Pairing {
+        &self.pairing
     }
 
     pub fn options(&self) -> Options {

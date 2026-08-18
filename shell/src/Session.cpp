@@ -198,6 +198,18 @@ void Session::setPageDelta(int d) {
     emit invalidated();
 }
 
+bool Session::autoMatch() {
+    if (sc_session_auto_match(m_s) < 0) {
+        return false;
+    }
+    emit invalidated();
+    return true;
+}
+
+bool Session::pairingIsAutomatic() const {
+    return sc_session_pairing_is_automatic(m_s);
+}
+
 QVector<QRectF> Session::ignoreRects() const {
     QVector<QRectF> out;
     const size_t n = sc_session_ignore_rect_count(m_s);

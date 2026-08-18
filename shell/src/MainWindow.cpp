@@ -110,6 +110,8 @@ void MainWindow::buildMenus() {
     QAction *sl = cmp->addAction(tr("Shift Pairing &Left"), this, [this] { nudgePairing(-1); });
     sl->setObjectName(QStringLiteral("shiftLeft"));
     sl->setShortcut(Qt::ALT | Qt::SHIFT | Qt::Key_Left);
+    QAction *am = cmp->addAction(tr("&Match Sheets by Content"), this, &MainWindow::matchSheets);
+    am->setObjectName(QStringLiteral("autoMatch"));
     QAction *s0 = cmp->addAction(tr("Reset Pairing"), this, [this] {
         if (m_session) {
             m_session->setPageDelta(0);
@@ -208,6 +210,19 @@ void MainWindow::nudgePairing(int by) {
     if (m_session) {
         m_session->setPageDelta(m_session->pageDelta() + by);
     }
+}
+
+void MainWindow::matchSheets() {
+    if (!m_session) {
+        return;
+    }
+    if (!m_session->autoMatch()) {
+        QMessageBox::warning(this, tr("Cannot match these sheets"), m_session->lastError());
+        return;
+    }
+    // The pairing changed, so every scanned answer was about different sheets.
+    m_session->startSweep();
+    updateStatus();
 }
 
 void MainWindow::nudgeTolerance(int by) {
@@ -375,9 +390,12 @@ void MainWindow::updateStatus() {
                        .arg(mode)
                        .arg(int(m_view->zoom() * 100))
                        .arg(m_session->tolerance());
-    if (m_session->pageDelta() != 0) {
-        text += tr("   pairing %1%2").arg(m_session->pageDelta() > 0 ? "+" : "").arg(
-            m_session->pageDelta());
+    if (m_session->pairingIsAutomatic()) {
+        text += tr("   sheets matched by content");
+    } else if (m_session->pageDelta() != 0) {
+        text += tr("   pairing %1%2")
+                    .arg(m_session->pageDelta() > 0 ? "+" : "")
+                    .arg(m_session->pageDelta());
     }
     const ScSweepStatus sw = m_session->sweepStatus();
     if (sw.running) {

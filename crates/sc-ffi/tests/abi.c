@@ -87,6 +87,8 @@ static void null_session_is_survivable(void) {
     check(sc_session_sweep_status(NULL, &sw) < 0, "sweep_status(NULL) fails");
     check(sc_session_suggested_count(NULL) == 0, "suggested_count(NULL) is 0");
     check(sc_session_suggested(NULL, 0, &r) < 0, "suggested(NULL) fails");
+    check(sc_session_auto_match(NULL) < 0, "auto_match(NULL) fails");
+    check(!sc_session_pairing_is_automatic(NULL), "pairing_is_automatic(NULL) is false");
 }
 
 static void null_out_params_are_survivable(void) {

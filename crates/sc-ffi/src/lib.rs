@@ -418,6 +418,41 @@ pub unsafe extern "C" fn sc_session_set_page_delta(s: *mut ScSession, delta: i32
     }
 }
 
+/// Works out which sheet of B each sheet of A corresponds to, from what is
+/// written on them, and uses that as the pairing.
+///
+/// For a set that simply gained a sheet at the front, [`sc_session_set_page_delta`]
+/// does the same job and is more predictable. This is for the case an offset
+/// cannot express: sheets reordered, or inserted in the middle. It replaces any
+/// delta, and every cached answer with it.
+///
+/// # Safety
+/// `s` must be null or a live session.
+#[no_mangle]
+pub unsafe extern "C" fn sc_session_auto_match(s: *mut ScSession) -> ScStatus {
+    let Some(s) = s.as_mut() else {
+        return invalid("a live session is required");
+    };
+    match s.inner.auto_match() {
+        Ok(()) => {
+            s.reset_scans();
+            SC_OK
+        }
+        Err(e) => fail(e),
+    }
+}
+
+/// True when the pairing came from the documents rather than from an offset.
+///
+/// # Safety
+/// `s` must be null or a live session.
+#[no_mangle]
+pub unsafe extern "C" fn sc_session_pairing_is_automatic(s: *const ScSession) -> bool {
+    s.as_ref()
+        .map(|s| s.inner.pairing_is_automatic())
+        .unwrap_or(false)
+}
+
 /// Excludes a region, in page points, from the comparison on **every** sheet —
 /// which is what a shared title block needs.
 ///

@@ -172,6 +172,18 @@ int main(int argc, char **argv) {
     QTest::qWait(20);
     check(s->pageDelta() == 0, QStringLiteral("and shifts back"));
 
+    // Matching by content lines these sets up one to one, and says it did.
+    win.findChild<QAction *>(QStringLiteral("autoMatch"))->trigger();
+    QTest::qWait(50);
+    check(s->pairingIsAutomatic(), QStringLiteral("the pairing is a content match"));
+    check(s->pair(7).first == 7 && s->pair(7).second == 7,
+          QStringLiteral("and these sets match one to one"));
+    check(status->text().contains(QStringLiteral("matched by content")),
+          QStringLiteral("and the status line says which pairing is in force: '%1'")
+              .arg(status->text()));
+    check(waitForSweep(s), QStringLiteral("and the sweep runs again on the new pairing"));
+    shot(&win, QStringLiteral("matched"));
+
     if (failures == 0) {
         printf("view: ok\n");
     }

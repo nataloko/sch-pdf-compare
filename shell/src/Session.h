@@ -60,6 +60,9 @@ class Session : public QObject {
 
     int pageDelta() const;
     void setPageDelta(int d);
+    // Matches the sheets by what is written on them. Replaces any delta.
+    bool autoMatch();
+    bool pairingIsAutomatic() const;
 
     QVector<QRectF> ignoreRects() const;
     void addIgnoreRect(const QRectF &r);

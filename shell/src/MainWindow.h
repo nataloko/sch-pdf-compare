@@ -40,6 +40,7 @@ class MainWindow : public QMainWindow {
   private slots:
     void stepChange(int direction);
     void nudgePairing(int by);
+    void matchSheets();
     void nudgeTolerance(int by);
 
   private:

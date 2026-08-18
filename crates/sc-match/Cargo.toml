@@ -6,4 +6,4 @@ license.workspace = true
 repository.workspace = true
 
 [dependencies]
-sc-render.workspace = true
+sc-diff.workspace = true

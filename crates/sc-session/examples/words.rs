@@ -17,12 +17,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut no_twin = 0;
     for w in &wa {
         let twin = wb.iter().filter(|o| o.text == w.text).min_by(|p, q| {
-            let d = |r: &sc_render::Word| (r.x - w.x).abs() + (r.y - w.y).abs();
+            let d = |r: &sc_render::Word| (r.rect.x - w.rect.x).abs() + (r.rect.y - w.rect.y).abs();
             d(p).partial_cmp(&d(q)).unwrap_or(std::cmp::Ordering::Equal)
         });
         match twin {
             Some(t) => {
-                let d = (t.x - w.x).abs().max((t.y - w.y).abs());
+                let d = (t.rect.x - w.rect.x).abs().max((t.rect.y - w.rect.y).abs());
                 if d < 0.01 {
                     exact_same_place += 1;
                 }

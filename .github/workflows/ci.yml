@@ -27,12 +27,19 @@ concurrency:
 jobs:
   linux:
     runs-on: ubuntu-24.04
+    # A ceiling on every job. The first time this file met a stalled Ubuntu
+    # mirror, `apt-get update` sat there for sixteen minutes and would have sat
+    # there for six hours. A hang is worse than a failure: nobody reads it as a
+    # result.
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v5
 
       - name: Install Qt and the build tools
+        # Retries and a timeout on the fetch, because the Ubuntu mirrors do stall
+        # and the default behaviour is to wait rather than to move on.
         run: |
-          sudo apt-get update
+          sudo apt-get -o Acquire::Retries=3 -o Acquire::http::Timeout=20 update
           sudo apt-get install -y --no-install-recommends \
             qt6-base-dev qt6-base-dev-tools ninja-build cmake clang libclang-dev
 
@@ -54,6 +61,8 @@ jobs:
   # The build nobody here has run. Native Windows, official Qt, MSVC.
   windows:
     runs-on: windows-2022
+    # Longer than the others: most of it is MuPDF compiling from source.
+    timeout-minutes: 40
     steps:
       - uses: actions/checkout@v5
 
@@ -94,12 +103,13 @@ jobs:
   # by hand.
   cross:
     runs-on: ubuntu-24.04
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v5
 
       - name: Install MinGW and Wine
         run: |
-          sudo apt-get update
+          sudo apt-get -o Acquire::Retries=3 -o Acquire::http::Timeout=20 update
           sudo apt-get install -y --no-install-recommends \
             mingw-w64 g++-mingw-w64-x86-64 wine64 clang libclang-dev
 

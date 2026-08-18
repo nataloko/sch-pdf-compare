@@ -47,11 +47,13 @@ class MainWindow : public QMainWindow {
     void buildMenus();
     void updateStatus();
     void rebuildSheetList();
+    void rebuildTextChanges(int page);
     void setViewMode(int mode);
     void blink();
 
     CompareView *m_view = nullptr;
     QTreeWidget *m_sheets = nullptr;
+    QTreeWidget *m_text = nullptr;
     QLabel *m_status = nullptr;
     Session *m_session = nullptr;
     bool m_forTesting = false;

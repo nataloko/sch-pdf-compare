@@ -44,6 +44,25 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
         }
     });
 
+    // What the sheet *says* differently, next to the list of where it *looks*
+    // different. The two answer different questions and a reviewer wants both:
+    // the overlay catches a re-routed wire that carries no text, this catches a
+    // value that went from 10k to 12k and spells it out.
+    auto *textDock = new QDockWidget(tr("Text on this sheet"), this);
+    textDock->setAllowedAreas(Qt::LeftDockWidgetArea | Qt::RightDockWidgetArea);
+    m_text = new QTreeWidget(textDock);
+    m_text->setObjectName(QStringLiteral("textChanges"));
+    m_text->setHeaderLabels({tr("Was"), tr("Is now")});
+    m_text->setRootIsDecorated(false);
+    m_text->setColumnWidth(0, 140);
+    textDock->setWidget(m_text);
+    addDockWidget(Qt::RightDockWidgetArea, textDock);
+    connect(m_text, &QTreeWidget::itemClicked, this, [this](QTreeWidgetItem *i, int) {
+        if (i && m_session) {
+            m_view->showRect(m_view->currentPage(), i->data(0, Qt::UserRole).toRectF());
+        }
+    });
+
     m_status = new QLabel(this);
     m_status->setObjectName(QStringLiteral("status"));
     statusBar()->addWidget(m_status);
@@ -236,7 +255,33 @@ void MainWindow::onCurrentPageChanged(int page) {
         m_session->scanPage(page);
         rebuildSheetList();
     }
+    rebuildTextChanges(page);
     updateStatus();
+}
+
+void MainWindow::rebuildTextChanges(int page) {
+    m_text->clear();
+    if (!m_session || page < 1) {
+        return;
+    }
+    for (const Session::TextChange &c : m_session->textChanges(page)) {
+        auto *item = new QTreeWidgetItem(m_text);
+        switch (c.kind) {
+        case SC_TEXT_CHANGE_KIND_CHANGED:
+            item->setText(0, c.before);
+            item->setText(1, c.after);
+            break;
+        case SC_TEXT_CHANGE_KIND_REMOVED:
+            item->setText(0, c.before);
+            item->setText(1, tr("— removed"));
+            break;
+        default:
+            item->setText(0, tr("— added"));
+            item->setText(1, c.after);
+            break;
+        }
+        item->setData(0, Qt::UserRole, c.rect);
+    }
 }
 
 void MainWindow::onRegionSelected(int page, const QRectF &r) {

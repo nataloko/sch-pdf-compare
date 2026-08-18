@@ -184,6 +184,25 @@ int main(int argc, char **argv) {
     check(waitForSweep(s), QStringLiteral("and the sweep runs again on the new pairing"));
     shot(&win, QStringLiteral("matched"));
 
+    // The text panel says what a sheet reads differently. Sheet 2 of this pair
+    // renamed a run of UART nets, which is the kind of thing a reviewer is
+    // actually hunting for and cannot see in a red blob.
+    auto *textList = win.findChild<QTreeWidget *>(QStringLiteral("textChanges"));
+    check(textList != nullptr, QStringLiteral("the window has a text panel"));
+    view->goToPage(2);
+    QTest::qWait(50);
+    check(textList->topLevelItemCount() > 0,
+          QStringLiteral("sheet 2 has text changes, got %1").arg(textList->topLevelItemCount()));
+    bool renamed = false;
+    for (int i = 0; i < textList->topLevelItemCount(); i++) {
+        if (textList->topLevelItem(i)->text(0) == QLatin1String("NET_ALPHA") &&
+            textList->topLevelItem(i)->text(1) == QLatin1String("NET_BRAVO")) {
+            renamed = true;
+        }
+    }
+    check(renamed, QStringLiteral("and it spells out the net rename"));
+    shot(&win, QStringLiteral("text-changes"));
+
     if (failures == 0) {
         printf("view: ok\n");
     }

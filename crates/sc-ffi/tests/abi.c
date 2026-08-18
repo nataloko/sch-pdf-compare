@@ -89,6 +89,9 @@ static void null_session_is_survivable(void) {
     check(sc_session_suggested(NULL, 0, &r) < 0, "suggested(NULL) fails");
     check(sc_session_auto_match(NULL) < 0, "auto_match(NULL) fails");
     check(!sc_session_pairing_is_automatic(NULL), "pairing_is_automatic(NULL) is false");
+    ScTextChange tc;
+    check(sc_session_text_changes(NULL, 1) < 0, "text_changes(NULL) fails");
+    check(sc_session_text_change(NULL, 0, &tc) < 0, "text_change(NULL) fails");
 }
 
 static void null_out_params_are_survivable(void) {
@@ -101,6 +104,7 @@ static void null_out_params_are_survivable(void) {
     check(sc_session_ignore_rect(NULL, 0, NULL) < 0, "ignore_rect with a null out fails");
     check(sc_session_sweep_status(NULL, NULL) < 0, "sweep_status with a null out fails");
     check(sc_session_suggested(NULL, 0, NULL) < 0, "suggested with a null out fails");
+    check(sc_session_text_change(NULL, 0, NULL) < 0, "text_change with a null out fails");
 }
 
 static void a_failure_leaves_a_sentence_behind(void) {

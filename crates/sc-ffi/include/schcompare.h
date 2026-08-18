@@ -34,6 +34,35 @@ typedef uint8_t ScViewMode;
 #endif // __cplusplus
 
 /**
+ * Whether a piece of text was added, removed, or says something different.
+ */
+enum ScTextChangeKind
+#if defined(__cplusplus) || __STDC_VERSION__ >= 202311L
+  : uint8_t
+#endif // defined(__cplusplus) || __STDC_VERSION__ >= 202311L
+ {
+    /**
+     * In the later revision only.
+     */
+    SC_TEXT_CHANGE_KIND_ADDED = 0,
+    /**
+     * In the earlier revision only.
+     */
+    SC_TEXT_CHANGE_KIND_REMOVED = 1,
+    /**
+     * In the same place on both, saying something different.
+     */
+    SC_TEXT_CHANGE_KIND_CHANGED = 2,
+};
+#ifndef __cplusplus
+#if __STDC_VERSION__ >= 202311L
+typedef enum ScTextChangeKind ScTextChangeKind;
+#else
+typedef uint8_t ScTextChangeKind;
+#endif // __STDC_VERSION__ >= 202311L
+#endif // __cplusplus
+
+/**
  * One open comparison. Opaque; every field is this crate's business.
  */
 typedef struct ScSession ScSession;
@@ -94,6 +123,25 @@ typedef struct {
      */
     int32_t suggested;
 } ScSweepStatus;
+
+/**
+ * One difference in what the two revisions of a sheet say.
+ */
+typedef struct {
+    ScTextChangeKind kind;
+    /**
+     * What the earlier revision said; an empty string for an addition.
+     */
+    const char *before;
+    /**
+     * What the later one says; an empty string for a removal.
+     */
+    const char *after;
+    /**
+     * Where it is, in page points.
+     */
+    ScRectF rect;
+} ScTextChange;
 
 #define SC_OK 0
 
@@ -430,6 +478,36 @@ int32_t sc_session_suggested_count(const ScSession *s);
  * `s` must be null or a live session; `out` must be writable.
  */
 ScStatus sc_session_suggested(const ScSession *s, size_t index, ScRectF *out);
+
+/**
+ * Works out what the two revisions of this sheet say differently, and returns
+ * how many differences there are.
+ *
+ * Negative on failure. Read them with [`sc_session_text_change`].
+ *
+ * This complements the overlay rather than replacing it — the overlay finds a
+ * re-routed wire that carries no text at all. It is, though, the answer to the
+ * case the overlay handles worst: when two revisions went through different PDF
+ * producers every glyph is drawn differently and the overlay reports about
+ * twenty-five regions a sheet, while the words report the two that changed.
+ *
+ * # Safety
+ * `s` must be null or a live session.
+ */
+int32_t sc_session_text_changes(ScSession *s,
+                                int32_t page_no);
+
+/**
+ * One of the differences found by the last [`sc_session_text_changes`] call.
+ *
+ * # Safety
+ * `s` must be null or a live session and `out` writable. **The strings `out`
+ * points at are borrowed and stay valid only until the next
+ * `sc_session_text_changes` call on this session, or until it is freed.**
+ */
+ScStatus sc_session_text_change(const ScSession *s,
+                                size_t index,
+                                ScTextChange *out);
 
 #ifdef __cplusplus
 }  // extern "C"

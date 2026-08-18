@@ -16,7 +16,7 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 use std::ffi::{c_char, CStr, CString};
 
-use sc_diff::{RectF, ViewMode};
+use sc_diff::{RectF, TextChange, TextChangeKind, ViewMode};
 use sc_render::Tile as RenderTile;
 use sc_session::{suggest_ignores, Session, SheetChanges, Sweep};
 
@@ -171,6 +171,10 @@ pub struct ScSession {
     last_tile: Option<sc_diff::Tile>,
     scans: HashMap<i32, SheetChanges>,
     sweep: Option<Sweep>,
+    /// The text changes of whichever sheet was asked about last, with their
+    /// strings kept alive. The ABI hands out borrowed `const char *`, and this
+    /// is what they borrow from.
+    text_changes: Vec<(TextChange, CString, CString)>,
     /// Everything the sweep has handed over, in the order it arrived. Kept
     /// alongside `scans` because the repeat detector wants the whole set, and
     /// asking it a question from half a sweep is a different question.
@@ -198,6 +202,7 @@ pub unsafe extern "C" fn sc_session_open(
             last_tile: None,
             scans: HashMap::new(),
             sweep: None,
+            text_changes: Vec::new(),
             swept: Vec::new(),
             suggested: Vec::new(),
         })),
@@ -598,6 +603,7 @@ impl ScSession {
         self.scans.clear();
         self.swept.clear();
         self.suggested.clear();
+        self.text_changes.clear();
     }
 }
 
@@ -764,6 +770,98 @@ pub unsafe extern "C" fn sc_session_suggested(
             SC_OK
         }
         None => invalid("no suggested region with that index"),
+    }
+}
+
+/// Whether a piece of text was added, removed, or says something different.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+#[repr(u8)]
+pub enum ScTextChangeKind {
+    /// In the later revision only.
+    Added = 0,
+    /// In the earlier revision only.
+    Removed = 1,
+    /// In the same place on both, saying something different.
+    Changed = 2,
+}
+
+/// One difference in what the two revisions of a sheet say.
+#[derive(Clone, Copy, Debug)]
+#[repr(C)]
+pub struct ScTextChange {
+    pub kind: ScTextChangeKind,
+    /// What the earlier revision said; an empty string for an addition.
+    pub before: *const c_char,
+    /// What the later one says; an empty string for a removal.
+    pub after: *const c_char,
+    /// Where it is, in page points.
+    pub rect: ScRectF,
+}
+
+/// Works out what the two revisions of this sheet say differently, and returns
+/// how many differences there are.
+///
+/// Negative on failure. Read them with [`sc_session_text_change`].
+///
+/// This complements the overlay rather than replacing it — the overlay finds a
+/// re-routed wire that carries no text at all. It is, though, the answer to the
+/// case the overlay handles worst: when two revisions went through different PDF
+/// producers every glyph is drawn differently and the overlay reports about
+/// twenty-five regions a sheet, while the words report the two that changed.
+///
+/// # Safety
+/// `s` must be null or a live session.
+#[no_mangle]
+pub unsafe extern "C" fn sc_session_text_changes(s: *mut ScSession, page_no: i32) -> i32 {
+    let Some(s) = s.as_mut() else {
+        return invalid("a live session is required");
+    };
+    match s.inner.page_text_changes(page_no) {
+        Ok(changes) => {
+            s.text_changes = changes
+                .into_iter()
+                .map(|c| {
+                    let before = CString::new(c.before.replace('\0', " ")).unwrap_or_default();
+                    let after = CString::new(c.after.replace('\0', " ")).unwrap_or_default();
+                    (c, before, after)
+                })
+                .collect();
+            s.text_changes.len() as i32
+        }
+        Err(e) => fail(e),
+    }
+}
+
+/// One of the differences found by the last [`sc_session_text_changes`] call.
+///
+/// # Safety
+/// `s` must be null or a live session and `out` writable. **The strings `out`
+/// points at are borrowed and stay valid only until the next
+/// `sc_session_text_changes` call on this session, or until it is freed.**
+#[no_mangle]
+pub unsafe extern "C" fn sc_session_text_change(
+    s: *const ScSession,
+    index: usize,
+    out: *mut ScTextChange,
+) -> ScStatus {
+    let (Some(s), false) = (s.as_ref(), out.is_null()) else {
+        return invalid("a live session and a writable change are required");
+    };
+    match s.text_changes.get(index) {
+        Some((c, before, after)) => {
+            *out = ScTextChange {
+                kind: match c.kind {
+                    TextChangeKind::Added => ScTextChangeKind::Added,
+                    TextChangeKind::Removed => ScTextChangeKind::Removed,
+                    TextChangeKind::Changed => ScTextChangeKind::Changed,
+                },
+                before: before.as_ptr(),
+                after: after.as_ptr(),
+                rect: c.rect.into(),
+            };
+            SC_OK
+        }
+        None => invalid("no text change with that index"),
     }
 }
 

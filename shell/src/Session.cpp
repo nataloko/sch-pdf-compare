@@ -87,6 +87,26 @@ ScSweepStatus Session::sweepStatus() const {
     return s;
 }
 
+QVector<Session::TextChange> Session::textChanges(int page) {
+    QVector<TextChange> out;
+    const int n = sc_session_text_changes(m_s, page);
+    if (n <= 0) {
+        return out;
+    }
+    out.reserve(n);
+    for (int i = 0; i < n; i++) {
+        ScTextChange c;
+        if (sc_session_text_change(m_s, size_t(i), &c) != SC_OK) {
+            continue;
+        }
+        // Copied out here, deliberately: the core lends these strings only
+        // until the next call, and this vector outlives that.
+        out.append({c.kind, QString::fromUtf8(c.before), QString::fromUtf8(c.after),
+                    QRectF(c.rect.x, c.rect.y, c.rect.dx, c.rect.dy)});
+    }
+    return out;
+}
+
 bool Session::sweepCollected() const {
     // The notifier is dropped by `onWakeup` exactly when the pump reports that
     // it has taken the last results and the sweep is done, so its absence is

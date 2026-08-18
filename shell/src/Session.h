@@ -76,6 +76,17 @@ class Session : public QObject {
     int ignoredCount(int page) const;
     QRectF change(int page, int index) const;
 
+    // One difference in what the two revisions of a sheet say.
+    struct TextChange {
+        ScTextChangeKind kind;
+        QString before;
+        QString after;
+        QRectF rect;
+    };
+    // What this sheet says differently. Complements the overlay: the overlay
+    // finds a re-routed wire, this finds a value that went from 10k to 12k.
+    QVector<TextChange> textChanges(int page);
+
     // Starts scanning every sheet on a worker thread. Progress arrives as
     // signals, driven by the core's wakeup handle — there is no timer in this.
     void startSweep();

@@ -123,5 +123,27 @@ export OUTPUT="$out/sch-pdf-compare-x86_64.AppImage"
     --plugin qt \
     --output appimage
 
+# The failure this catches took two rounds to find: a plugin whose run path
+# still points at the build machine loads there and nowhere else, and the only
+# symptom is a feature quietly missing. Every plugin must reach the bundled Qt
+# through $ORIGIN, and no plugin may want a Qt library the image does not carry.
+bad=0
+for so in $(find "$out/AppDir/usr/plugins" -name '*.so'); do
+    case $(patchelf --print-rpath "$so") in
+        *'$ORIGIN'*) ;;
+        *) echo "plugin has no \$ORIGIN run path: ${so#"$out/AppDir/"}" >&2; bad=1 ;;
+    esac
+    for need in $(patchelf --print-needed "$so" | grep '^libQt6'); do
+        if [ ! -e "$out/AppDir/usr/lib/$need" ]; then
+            echo "plugin wants $need, which the image does not carry: ${so#"$out/AppDir/"}" >&2
+            bad=1
+        fi
+    done
+done
+if [ "$bad" -ne 0 ]; then
+    echo "the image would work on this machine and fail on another" >&2
+    exit 1
+fi
+
 echo
 echo "wrote $OUTPUT"

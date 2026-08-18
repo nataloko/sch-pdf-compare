@@ -42,12 +42,19 @@ endif()
 # The documents the window test compares. Written by a Rust helper into the
 # build tree, so the window's own behaviour is exercised on a clone that has no
 # customer drawings in it. The real sets, when present, are checked as well.
+#
+# Built for the *host*, with no `--target`, even when everything else here is
+# being cross-compiled. This is a tool that is run during the build rather than
+# a part of the product: built for Windows from Linux, the first cross build
+# stopped at `cannot execute binary file`, and running it through an emulator
+# to write two PDFs that are the same bytes either way would be answering the
+# wrong question. What it produces is portable; what produces it need not be.
 set(SC_FIXTURE_DIR "${CMAKE_BINARY_DIR}/fixtures")
 add_custom_target(sc_fixtures ALL
     BYPRODUCTS "${SC_FIXTURE_DIR}/a.pdf" "${SC_FIXTURE_DIR}/b.pdf"
     COMMAND ${CMAKE_COMMAND} -E env "CARGO_TARGET_DIR=${SC_CARGO_DIR}"
             "${CARGO_EXECUTABLE}" run -q -p sc-fixture --bin gen-fixtures
-            ${SC_CARGO_FLAGS} ${SC_CARGO_TARGET_FLAGS} -- "${SC_FIXTURE_DIR}"
+            ${SC_CARGO_FLAGS} -- "${SC_FIXTURE_DIR}"
     WORKING_DIRECTORY "${SC_CORE_ROOT}"
     COMMENT "writing the window test's fixture documents"
     USES_TERMINAL VERBATIM)

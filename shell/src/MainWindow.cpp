@@ -347,7 +347,11 @@ void MainWindow::buildToolBar() {
     bar->addAction(m_onlyBAct);
     bar->addAction(m_overlayAct);
     bar->addAction(m_sideBySideAct);
-    bar->addAction(m_singlePageAct);
+    // One sheet at a time is not on the bar. It belongs to the same family as
+    // the four buttons above it and sat with them, but it answers a different
+    // question — those pick *what* is drawn, this picks how much of the set is
+    // — and a fifth button in the row read as a fifth view mode. It keeps the
+    // View menu, the context menu and `5`.
     bar->addSeparator();
     bar->addAction(findChild<QAction *>(QStringLiteral("prev")));
     bar->addAction(findChild<QAction *>(QStringLiteral("next")));
@@ -421,7 +425,7 @@ void MainWindow::buildToolBar() {
     connect(m_toleranceBox, &QSpinBox::valueChanged, this, &MainWindow::changeTolerance);
 
     // Shorter words on the buttons than in the menu, because the menu has room
-    // to say "Compare Two Files…" and a toolbar with eleven controls on it does
+    // to say "Compare Two Files…" and a toolbar with ten controls on it does
     // not. The menu entry stays the long one: that is where a reader goes to
     // find out what something is called.
     struct Short {
@@ -430,7 +434,7 @@ void MainWindow::buildToolBar() {
     };
     for (const Short &s : {Short{"open", tr("Open")}, Short{"prev", tr("Previous")},
                            Short{"next", tr("Next")}, Short{"excludeRegion", tr("Exclude")},
-                           Short{"singlePage", tr("One sheet")}, Short{"fade", tr("Fade")}}) {
+                           Short{"fade", tr("Fade")}}) {
         if (QAction *a = findChild<QAction *>(QString::fromLatin1(s.name))) {
             a->setIconText(s.text);
         }

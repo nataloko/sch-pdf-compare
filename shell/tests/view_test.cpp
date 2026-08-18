@@ -638,9 +638,17 @@ int main(int argc, char **argv) {
     {
         auto *one = win.findChild<QAction *>(QStringLiteral("singlePage"));
         check(one != nullptr, QStringLiteral("there is a single-page action"));
+        // Not a toolbar button. It sat beside the four view buttons and read as
+        // a fifth view mode, when what it settles is how much of the set is on
+        // screen rather than what is drawn on it. The menus and `5` keep it.
+        auto *tbar = win.findChild<QToolBar *>(QStringLiteral("toolbar"));
+        check(tbar && !tbar->actions().contains(one),
+              QStringLiteral("one sheet at a time is not a button on the bar"));
+        check(one->shortcut() == QKeySequence(Qt::Key_5),
+              QStringLiteral("and 5 still reaches it"));
         view->goToPage(3);
         QTest::qWait(50);
-        one->setChecked(true);
+        one->trigger(); // the menu route, which is now the only one
         QTest::qWait(50);
         check(view->flow() == CompareView::Flow::SinglePage,
               QStringLiteral("the viewport shows one sheet"));

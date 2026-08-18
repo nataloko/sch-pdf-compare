@@ -590,6 +590,12 @@ close. It broke `showRect` on the way in — stepping to a change crosses sheets
 and the sheet it was pointing at had not been laid out — which is the same class
 of bug as the layout that never rebuilt, and is tested the same way.
 
+That distinction is also why it is **not a toolbar button**. It was one, at the
+end of the row of four that answer "what am I looking at", and there it read as
+a fifth answer to that question — a row of five where the fifth is not a member
+of the set says the wrong thing quietly and repeatedly. It keeps the View menu,
+the right-click menu and `5`.
+
 **The toolbar has pictures now**, and the reason it did not is answered rather
 than forgotten. It said: there is no icon set that says "only the earlier
 revision", and a toolbar of guesses is worse than no toolbar. Both halves still

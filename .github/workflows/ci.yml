@@ -1,0 +1,111 @@
+# What has to pass before a change lands.
+#
+# The Linux job runs `check.sh`, which is the same thing a person runs. The
+# Windows job exists for one reason: this project is developed on Linux, the
+# shell has never been built on Windows here, and "the CMake handles it" is an
+# assertion until something builds it. It is the only part of the project whose
+# correctness nobody has observed.
+#
+# Neither job can run the sample-set tests. The drawings are customer material
+# and are not in the repository, so those tests skip and the `sc-fixture` tests —
+# which write their own documents — carry the coverage.
+
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  linux:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Qt and the build tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            qt6-base-dev qt6-base-dev-tools ninja-build cmake clang libclang-dev
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      # MuPDF is built from source by `mupdf-sys` and dominates a cold build.
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: crates
+
+      - name: Configure
+        run: cmake -S shell -B shell/build -G Ninja
+
+      - name: Check
+        run: ./check.sh
+
+  # The build nobody here has run. Native Windows, official Qt, MSVC.
+  windows:
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: ilammy/msvc-dev-cmd@v1
+
+      - name: Install Qt
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: '6.7.2'
+          arch: win64_msvc2019_64
+          cache: true
+
+      # MSVC Qt wants the MSVC Rust toolchain: the two halves meet at a C ABI
+      # that tolerates a mismatch, but there is no reason to have one.
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-pc-windows-msvc
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: crates
+
+      - name: Configure
+        run: cmake -S shell -B shell/build -G Ninja
+
+      - name: Build
+        run: cmake --build shell/build
+
+      # `offscreen` because a runner has no display. This proves the shell links
+      # and starts, which is the question Windows is here to answer.
+      - name: Test
+        run: ctest --test-dir shell/build --output-on-failure
+        env:
+          QT_QPA_PLATFORM: offscreen
+
+  # The core cross-built from Linux with MinGW, and run under Wine. This is the
+  # path `packaging/windows/build-core.sh` takes, and the one already verified
+  # by hand.
+  cross:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install MinGW and Wine
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            mingw-w64 g++-mingw-w64-x86-64 wine64 clang libclang-dev
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-pc-windows-gnu
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: crates
+
+      - name: Build the core and run its harness
+        run: ./packaging/windows/build-core.sh
+        env:
+          WINE: /usr/bin/wine64

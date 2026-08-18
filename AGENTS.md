@@ -110,6 +110,20 @@ project.
 **Neither route has been run here.** This machine has no Windows and no MinGW Qt;
 what is verified is the core cross-build and its harness under Wine.
 
+## Continuous integration
+
+`.github/workflows/ci.yml` runs three jobs. The Linux one runs `check.sh` — the
+same command a person runs. The cross one builds the core with MinGW and runs its
+ABI harness under Wine.
+
+The Windows one exists for a single reason: this project is developed on Linux,
+the shell has never been built on Windows here, and "the CMake handles it" is an
+assertion until a machine builds it. Treat a red Windows job as the most
+informative result in the file.
+
+No job can run the sample-set tests, because the drawings are not in the
+repository. Those tests skip and the `sc-fixture` tests carry the coverage.
+
 ## Licensing
 
 AGPL-3.0-or-later, because MuPDF is AGPL and this links it. Qt is LGPLv3 and is

@@ -288,11 +288,17 @@ void CompareView::paintEvent(QPaintEvent *e) {
     g.fillRect(e->rect(), palette().dark());
     if (!m_session || m_layout.isEmpty()) {
         // An empty grey rectangle looks like a comparison that found nothing.
-        // Say which it is, and how to start one.
+        // Say which it is, how to start one, and — because the first thing the
+        // first reader did was click the switched-off buttons and report them
+        // broken — that the rest of the window waits on this.
+        QFont f = font();
+        f.setPointSizeF(f.pointSizeF() * 1.3);
+        g.setFont(f);
         g.setPen(palette().brightText().color());
         g.drawText(viewport()->rect(), Qt::AlignCenter,
                    tr("Open two revisions of a drawing to compare them.\n\n"
-                      "File \u25b8 Compare Two Files\u2026   (Ctrl+O)"));
+                      "File \u25b8 Compare Two Files\u2026   (Ctrl+O)\n\n"
+                      "Everything else stays switched off until then."));
         return;
     }
     const QPoint o = contentOrigin();

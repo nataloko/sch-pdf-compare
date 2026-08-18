@@ -195,6 +195,42 @@ failure, which is why they are written down.
 - **"`TocTree`'s root is an invisible container."** A Win32 tree-view detail. The
   changed-sheet list is a `QTreeWidget` populated from plain data.
 
+## When a sheet is not comparable at all
+
+Two sample sets added later found a failure that the first ones could not.
+
+One set was **reissued at a different paper size** — the same drawing on A3 that
+the previous revision had on A4. The comparison lays both sides out to the first
+document's geometry and crops the second, so an A3 sheet is measured against its
+own top-left corner. Nothing about the result means anything.
+
+What made it dangerous is what it reported. On sheet 1 there were 18216
+unmatched ink pixels on one side and 45693 on the other, and the scan came back
+with **7 regions** — which reads as a nearly unchanged sheet. The cause is not
+the matching but the clustering: it bridges neighbouring cells on purpose, so
+that one edit is one destination rather than forty, and a sheet that differs
+everywhere therefore collapses into a handful of very large regions.
+
+Two things follow, and both are now reported.
+
+**A paper-size mismatch is stated, not silently cropped.** The status line, the
+sheet's own section of the report, and the head of the report all say it, and the
+report says what to do about it. A count that cannot be trusted has to be labelled
+as such before anybody reads it.
+
+**A count of regions is not a measure of how much changed.** Each sheet now also
+carries the fraction of itself that the regions cover. Six edits cover a few per
+cent; the mismatched sheets cover 100%. On the other new set — a native ECAD
+export rather than a print-to-PDF — the sheets came back at 10%, 44% and 76%,
+which is the difference between a revision and a redraw, and no count of regions
+could have said it.
+
+This does not revive alignment. The pairs that are the same size on paper are
+still registered to within a pixel, and the probe over ±3 pixels still finds no
+basin to slide into. A different paper size is a different problem with a
+different answer: reissue the two revisions at the same size, or scale one to the
+other, which is not something this tool should do quietly.
+
 ## Refusing a file, and saying why
 
 Three things had to be refused that MuPDF will happily accept.
@@ -332,7 +368,11 @@ Ranked for the schematic-review workflow.
    Wine. What is left is building the shell — on Windows with the official Qt,
    or cross-built from a distribution with a MinGW Qt — and then an installer.
    Neither has been run; this machine has neither.
-2. **Alignment** (projection-profile registration). Designed in the fork,
-   unbuilt, and now measured against: the one sample pair that looked like it
-   might need it turns out to have no offset to find. Build it only if a
-   document set turns up with a real basin the probe can see.
+2. **Scaling a sheet to its counterpart**, for a set reissued at a different
+   paper size. The mismatch is now reported rather than hidden, which is the
+   part that mattered. Scaling would change every line weight on the sheet and
+   make its own fringe, so it wants measuring before it is built.
+3. **Alignment** (projection-profile registration). Designed in the fork,
+   unbuilt, and measured against: every pair that is the same size on paper has
+   no offset to find. Build it only if a document set turns up with a real basin
+   the probe can see.

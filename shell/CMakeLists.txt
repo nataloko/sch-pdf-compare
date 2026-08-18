@@ -156,6 +156,16 @@ set_target_properties(sch-pdf-compare PROPERTIES
     WIN32_EXECUTABLE ON
     RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}")
 
+# The program's icon, which only Windows takes from the binary itself.
+if(WIN32)
+    enable_language(RC)
+    set(SC_WINDOWS_ICON
+        "${CMAKE_CURRENT_SOURCE_DIR}/../packaging/windows/sch-pdf-compare.ico")
+    configure_file("${CMAKE_CURRENT_SOURCE_DIR}/../packaging/windows/app.rc.in"
+                   "${CMAKE_BINARY_DIR}/app.rc" @ONLY)
+    target_sources(sch-pdf-compare PRIVATE "${CMAKE_BINARY_DIR}/app.rc")
+endif()
+
 # The loader has to find the core next to cargo's output during development,
 # and beside the installed binary afterwards.
 if(UNIX)

@@ -266,12 +266,49 @@ size the two sheets are visibly the **same circuit** — the same blocks in the 
 arrangement — but re-laid out, with blocks moved, notes added and the title block
 reworded. The sheet was redrawn at a new size, not reissued at one.
 
-Two things follow.
+### Estimate it from the ink, and score it on the ink
 
-**Page size is the wrong estimator.** It corrects the sheet, not the content.
-The transform has to come from the ink, which is what the projection-profile
-registration in the fork was for — generalised from a translation to a similarity
-transform, which is a small step once the machinery exists.
+Two proxies for the transform look obvious and both give confident wrong answers.
+
+**Page size** corrects the sheet and leaves the content where it was. On the
+rescaled pair the page ratio is 1.4142 and the content ratio, measured from the
+text, is 1.54: the drawing was enlarged relative to its own frame as well as the
+paper.
+
+**Text anchors** look far better and are worse. Words whose text occurs once on
+each sheet are reliable correspondences, and a least-squares fit of a scale and
+an offset per axis over 59 of them, on the cross-producer pair, returns:
+
+    scale 1.0000 x 1.0016, offset -0.10 x -2.64 pt, residual median 0.16 pt
+
+A tight residual, from many anchors, on a pair known to have come out of two
+different PDF producers. It is wrong. Applied to that sheet:
+
+| | regions | unmatched ink |
+| --- | --- | --- |
+| as rendered | 1 | 7 px |
+| shifted by the estimate | 17 | 44518 px |
+| shifted by a deliberately wrong amount | 16 | 48585 px |
+
+The estimate is no better than a wrong answer, because the sheets were already
+registered to seven pixels. What the fit measured is not where the ink is: it is
+where MuPDF puts a word's bounding box, and two producers writing CID TrueType
+and subset Type1C put it at systematically different heights. The text moved by
+2.64 pt; the drawing did not.
+
+This is the same mistake as the phantom 2% rescale earlier, in a more convincing
+disguise — a confident number from a signal that is not the one being corrected.
+
+So the rule is not "estimate from the ink" but the stronger **estimate from the
+ink and score on the ink**. A candidate transform is worth applying only when it
+measurably reduces the unmatched ink that the comparison itself counts, and that
+is cheap to check for any candidate from any source. The search the fork designed
+— projection profiles for a first guess, then a local search — is the right
+shape, provided the thing it maximises is the comparison's own metric and not a
+correlation of something else.
+
+`crates/sc-session/examples/applyfit.rs` is that check, and running it before
+believing any estimate is the whole lesson.
 
 **No transform rescues a redraw.** For this pair the honest answer is still that
 the sheets are not comparable, which is what the size warning and the coverage
@@ -441,10 +478,17 @@ Ranked for the schematic-review workflow.
    on a Windows runner with the official Qt — until that job has been seen green,
    "the CMake handles it" is still an assertion. After that, an installer.
 2. **Estimate the transform between two sheets** — one item, not two. Alignment
-   and scaling are the same question, and a single estimator covers both and is
-   the identity when nothing needs correcting. It has to be estimated from the
-   **ink**, not from the page size: page size corrects the sheet and leaves the
-   content where it was. Every same-size pair in the corpus estimates the
-   identity, so this stays unbuilt until a set turns up whose content genuinely
-   is offset or scaled without being redrawn. Applying it would resample every
-   line on the sheet, so it wants measuring before it is switched on.
+   and scaling are the same question, and one estimator covers both and is the
+   identity when nothing needs correcting.
+
+   Estimate it from the ink and score it on the ink: two proxies have now each
+   produced a confident wrong answer, and the section above has the numbers. A
+   candidate is worth applying only when it reduces the unmatched ink the
+   comparison counts.
+
+   It stays unbuilt because no pair in the corpus needs it. Every same-size pair
+   is already registered — the closest thing to a counter-example scores 1 region
+   and 7 unmatched pixels as it stands. Applying a scale would resample every
+   line on the sheet and make its own fringe, so it wants measuring before it is
+   switched on, in stages: report the estimate first, apply whole-pixel
+   translation next, and only then consider scale.

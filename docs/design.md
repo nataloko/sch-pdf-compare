@@ -128,9 +128,25 @@ failure, which is why they are written down.
    still in progress, so a UI that checked "finished" on them never saw it and
    nothing fired again. Here the sweep does not call back at all: it sets its
    status and pokes a wakeup handle, and the shell reads the status. The
-   ordering hazard cannot arise.
+   ordering hazard cannot arise in that form — but see 6 and 7, which are the
+   two shapes it took instead.
 
-6. **MuPDF's image scaler is not tile-invariant.** It chooses an image's
+6. **"The worker finished" is not "the frontend collected".** The sweep sets
+   `finished` and pokes; the event loop delivers that wakeup some time later,
+   and only then is the sidebar rebuilt. Anything that waits on `finished` and
+   immediately reads the UI sees the second-to-last answer — which is what two
+   runs in three of the window test did, reporting 20 sheets of 21 and a status
+   line still saying "scanning 20 of 21". `Session::sweepCollected()` is the
+   flag that actually means what such a caller wants, and the distinction is
+   worth keeping named rather than papered over with a wait.
+
+7. **Do not `delete` a `QSocketNotifier` inside its own activated slot.**
+   The sweep's last wakeup is where the frontend wants to stop watching, which
+   is exactly the moment the notifier is emitting. Destroying it there cuts the
+   emission short and the final update never lands. `setEnabled(false)` then
+   `deleteLater()`.
+
+8. **MuPDF's image scaler is not tile-invariant.** It chooses an image's
    subsample factor from the destination pixmap, so a tile that overlaps an
    embedded raster can differ from the same window of a full-page render by a
    few grey levels — measured at up to 17 on sheet 2 of the sample set, which
@@ -139,7 +155,7 @@ failure, which is why they are written down.
    it means a tile render is not byte-comparable to a full-page render and no
    test should assert that it is. Compare verdicts, not bytes.
 
-7. **`-for-testing` deliberately does not save settings.** Persistence has to be
+9. **`-for-testing` deliberately does not save settings.** Persistence has to be
    exercised without it.
 
 ### Dead, and why
@@ -161,8 +177,7 @@ failure, which is why they are written down.
 
 ## What is next
 
-Ranked for the schematic-review workflow. Items 1 and 2 are the fork's own
-"what's next" list; both have been validated against the real samples.
+Ranked for the schematic-review workflow.
 
 1. **Automatic page matching** by content signature, for sets whose sheets were
    reordered or inserted. Text-token Jaccard signatures matched 21/21 pages

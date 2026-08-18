@@ -8,6 +8,8 @@
 
 class CompareView;
 class QLabel;
+class QPainter;
+class QPrinter;
 class QAction;
 class QTreeWidget;
 class Session;
@@ -27,6 +29,8 @@ class MainWindow : public QMainWindow {
     void chooseAndOpen();
     void reopenLast();
     void exportReport();
+    void printSheets();
+    void printChangedSheets();
     void onCurrentPageChanged(int page);
     void onRegionSelected(int page, const QRectF &r);
     void scanEverySheet();
@@ -34,6 +38,12 @@ class MainWindow : public QMainWindow {
     void acceptSuggestions();
 
   public:
+    // The half of the print path that does the work, without the dialog. Split
+    // out so a test can print to a PDF and read back what came out, and so the
+    // dialog stays purely a dialog.
+    int printTo(QPrinter &printer, const QVector<int> &sheets);
+    QVector<int> changedSheetList() const;
+
     // The half of `acceptSuggestions` that does the work, without the question.
     // Split out so a test exercises the real behaviour rather than a modal
     // dialog, and so the question stays purely a question.
@@ -51,6 +61,9 @@ class MainWindow : public QMainWindow {
   private:
     void buildMenus();
     void persist();
+    void printRange(const QVector<int> &sheets);
+    void paintSheetForPrint(QPainter &g, QPrinter &printer, int sheet);
+    QVector<int> changedSheets() const;
     void updateStatus();
     void rebuildSheetList();
     void rebuildTextChanges(int page);

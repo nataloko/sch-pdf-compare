@@ -12,6 +12,11 @@
 #include <QLabel>
 #include <QCloseEvent>
 #include <QMenuBar>
+#include <QPageLayout>
+#include <QPainter>
+#include <QPrintDialog>
+#include <QPrinter>
+#include <QProgressDialog>
 #include <QMessageBox>
 #include <QStatusBar>
 #include <QTreeWidget>
@@ -85,6 +90,13 @@ void MainWindow::buildMenus() {
     QAction *rep = file->addAction(tr("&Export Change Report…"), this,
                                    &MainWindow::exportReport);
     rep->setObjectName(QStringLiteral("exportReport"));
+    file->addSeparator();
+    QAction *pr = file->addAction(tr("&Print…"), this, &MainWindow::printSheets);
+    pr->setObjectName(QStringLiteral("print"));
+    pr->setShortcut(QKeySequence::Print);
+    QAction *prc = file->addAction(tr("Print &Changed Sheets…"), this,
+                                   &MainWindow::printChangedSheets);
+    prc->setObjectName(QStringLiteral("printChanged"));
     file->addSeparator();
     QAction *quit = file->addAction(tr("&Quit"), qApp, &QApplication::quit);
     quit->setShortcut(QKeySequence::Quit);
@@ -246,6 +258,217 @@ void MainWindow::exportReport() {
         return;
     }
     statusBar()->showMessage(tr("Report written to %1").arg(path), 5000);
+}
+
+QVector<int> MainWindow::changedSheets() const {
+    QVector<int> out;
+    if (!m_session) {
+        return out;
+    }
+    for (int p = 1; p <= m_session->pageCount(); p++) {
+        if (m_session->changeCount(p) > 0) {
+            out.append(p);
+        }
+    }
+    return out;
+}
+
+void MainWindow::printSheets() {
+    if (!m_session) {
+        return;
+    }
+    QVector<int> all;
+    for (int p = 1; p <= m_session->pageCount(); p++) {
+        all.append(p);
+    }
+    printRange(all);
+}
+
+void MainWindow::printChangedSheets() {
+    if (!m_session) {
+        return;
+    }
+    const QVector<int> sheets = changedSheets();
+    if (sheets.isEmpty()) {
+        QMessageBox::information(
+            this, tr("Nothing to print"),
+            m_session->sweepStatus().finished
+                ? tr("No sheet has any changes on it.")
+                : tr("No changes have been found yet. The scan is still running."));
+        return;
+    }
+    printRange(sheets);
+}
+
+/// Prints the given virtual sheets as they are being viewed.
+///
+/// Deliberately not "print the two documents": what is worth putting on paper is
+/// the comparison, in whichever view the reader has chosen, and their tolerance
+/// and excluded regions with it.
+void MainWindow::printRange(const QVector<int> &sheets) {
+    if (!m_session || sheets.isEmpty()) {
+        return;
+    }
+    QPrinter printer(QPrinter::HighResolution);
+    printer.setDocName(QFileInfo(m_session->pathB()).completeBaseName());
+    QPrintDialog dialog(&printer, this);
+    dialog.setWindowTitle(tr("Print the comparison"));
+    if (dialog.exec() != QDialog::Accepted) {
+        return;
+    }
+
+    const int printed = printTo(printer, sheets);
+    if (printed < 0) {
+        QMessageBox::warning(this, tr("Cannot print"), tr("The printer would not start."));
+        return;
+    }
+    statusBar()->showMessage(printed == 1 ? tr("Sent 1 sheet to the printer")
+                                          : tr("Sent %1 sheets to the printer").arg(printed),
+                             5000);
+}
+
+/// Paints the sheets onto a printer. Returns how many pages came out, or -1 if
+/// the printer would not start.
+int MainWindow::printTo(QPrinter &printer, const QVector<int> &sheets) {
+    if (!m_session || sheets.isEmpty()) {
+        return 0;
+    }
+    // Turn the paper to match the drawing. A schematic set is landscape and the
+    // default page is portrait, which prints the sheet at two-thirds the size it
+    // could be with a band of white above and below it. Set per sheet, because a
+    // set can mix the two, and before the page starts — after it, the layout
+    // applies to the next one.
+    auto orientation = [this](int sheet) {
+        const QSizeF pt = m_session->pageSize(sheet);
+        return pt.width() >= pt.height() ? QPageLayout::Landscape : QPageLayout::Portrait;
+    };
+    const bool okOrient = printer.setPageOrientation(orientation(sheets.first()));
+    if (qEnvironmentVariableIsSet("SC_DEBUG_PRINT")) {
+        const QSizeF pt = m_session->pageSize(sheets.first());
+        fprintf(stderr, "[print] sheet %d is %.0fx%.0f pt, orientation set=%d ok=%d\n",
+                sheets.first(), pt.width(), pt.height(),
+                int(printer.pageLayout().orientation()), int(okOrient));
+    }
+
+    QPainter g;
+    if (!g.begin(&printer)) {
+        return -1;
+    }
+    QProgressDialog progress(tr("Printing…"), tr("Stop"), 0, sheets.size(), this);
+    progress.setWindowModality(Qt::WindowModal);
+    // Shown only if it takes long enough to be worth interrupting; a two-sheet
+    // print should not flash a dialog.
+    progress.setMinimumDuration(1000);
+
+    int done = 0;
+    for (int i = 0; i < sheets.size(); i++) {
+        progress.setValue(i);
+        if (progress.wasCanceled()) {
+            printer.abort();
+            break;
+        }
+        if (done > 0) {
+            printer.setPageOrientation(orientation(sheets[i]));
+            if (!printer.newPage()) {
+                break;
+            }
+        }
+        paintSheetForPrint(g, printer, sheets[i]);
+        done++;
+    }
+    progress.setValue(sheets.size());
+    g.end();
+    return done;
+}
+
+QVector<int> MainWindow::changedSheetList() const {
+    return changedSheets();
+}
+
+/// Draws one sheet onto the printer page, with a caption saying what it is.
+///
+/// The caption is not decoration. A printed comparison gets passed around
+/// without the application that made it, and it has to carry which two files it
+/// is, which view, and — most of all — whether part of every sheet was excluded
+/// from the comparison. A printout that quietly omitted that would be read as
+/// "nothing changed there".
+void MainWindow::paintSheetForPrint(QPainter &g, QPrinter &printer, int sheet) {
+    const QRect page = printer.pageLayout().paintRectPixels(printer.resolution());
+    const int dpi = qMax(72, printer.resolution());
+
+    // A caption strip about a quarter of an inch tall, in two lines.
+    QFont caption = g.font();
+    caption.setPointSizeF(7.0);
+    g.setFont(caption);
+    const QFontMetrics fm(caption, &printer);
+    const int captionH = fm.height() * 2 + dpi / 24;
+    const QRect art(0, 0, page.width(), qMax(1, page.height() - captionH));
+
+    const QSizeF pt = m_session->pageSize(sheet);
+    if (pt.isEmpty() || art.isEmpty()) {
+        return;
+    }
+    // Fit the sheet in the printable area, then cap the rendering resolution.
+    // A full page at a laser printer's 1200 dpi is half a gigabyte of pixels;
+    // 300 dpi is past what the eye resolves on paper and the printer's own
+    // scaling covers the rest.
+    const double fit = qMin(art.width() / pt.width(), art.height() / pt.height());
+    const double zoom = qMin(fit, 300.0 / 72.0);
+    const QSize deviceSize = m_session->pageDeviceSize(sheet, zoom);
+    if (deviceSize.isEmpty()) {
+        return;
+    }
+    const QImage img = m_session->tile(sheet, zoom, QRect(QPoint(0, 0), deviceSize));
+    if (img.isNull()) {
+        return;
+    }
+
+    // Centred, aspect preserved.
+    const QSize drawn = img.size().scaled(art.size(), Qt::KeepAspectRatio);
+    const QRect target(art.x() + (art.width() - drawn.width()) / 2,
+                       art.y() + (art.height() - drawn.height()) / 2, drawn.width(),
+                       drawn.height());
+    g.setRenderHint(QPainter::SmoothPixmapTransform, true);
+    g.drawImage(target, img);
+
+    QString mode;
+    switch (m_session->viewMode()) {
+    case SC_VIEW_MODE_ONLY_A:
+        mode = tr("earlier revision only");
+        break;
+    case SC_VIEW_MODE_ONLY_B:
+        mode = tr("later revision only");
+        break;
+    default:
+        mode = tr("overlay: red was removed, green was added");
+        break;
+    }
+    QString line1 = tr("Sheet %1 of %2 — %3 vs %4 — %5")
+                        .arg(sheet)
+                        .arg(m_session->pageCount())
+                        .arg(QFileInfo(m_session->pathA()).fileName(),
+                             QFileInfo(m_session->pathB()).fileName(), mode);
+    QString line2 = tr("tolerance %1 px").arg(m_session->tolerance());
+    const int n = m_session->changeCount(sheet);
+    if (n >= 0) {
+        line2 += QStringLiteral("   ·   ") +
+                 (n == 1 ? tr("1 changed region on this sheet")
+                         : tr("%1 changed regions on this sheet").arg(n));
+    }
+    const int excluded = m_session->ignoreRects().size();
+    if (excluded > 0) {
+        line2 += QStringLiteral("   ·   ") +
+                 (excluded == 1 ? tr("1 region excluded from the comparison")
+                                : tr("%1 regions excluded from the comparison").arg(excluded)) +
+                 tr(" — anything inside was not compared");
+    }
+
+    g.setPen(Qt::black);
+    const QRect strip(0, page.height() - captionH, page.width(), captionH);
+    g.drawText(QRect(strip.x(), strip.y(), strip.width(), fm.height()),
+               Qt::AlignLeft | Qt::AlignVCenter, line1);
+    g.drawText(QRect(strip.x(), strip.y() + fm.height(), strip.width(), fm.height()),
+               Qt::AlignLeft | Qt::AlignVCenter, line2);
 }
 
 void MainWindow::closeEvent(QCloseEvent *e) {

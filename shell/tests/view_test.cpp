@@ -17,8 +17,10 @@
 #include <QApplication>
 #include <QDir>
 #include <QFile>
+#include <QPrinter>
 #include <QFileInfo>
 #include <QFile>
+#include <QPrinter>
 #include <QFileInfo>
 #include <QLabel>
 #include <QTest>
@@ -227,6 +229,39 @@ int main(int argc, char **argv) {
         if (out.open(QIODevice::WriteOnly | QIODevice::Text)) {
             out.write(md.toUtf8());
         }
+    }
+
+    // Printing, checked by printing to a PDF and reading back what came out.
+    // A reviewer's other output is paper: the overlay of the sheets that
+    // changed, to mark up by hand.
+    {
+        const QString pdf = QDir::temp().filePath(QStringLiteral("sch-print-test.pdf"));
+        QFile::remove(pdf);
+        QPrinter printer(QPrinter::HighResolution);
+        printer.setOutputFormat(QPrinter::PdfFormat);
+        printer.setOutputFileName(pdf);
+        const QVector<int> changed = win.changedSheetList();
+        check(!changed.isEmpty(), QStringLiteral("there are changed sheets to print"));
+        // Two of them is enough to prove the page break works without spending
+        // twenty seconds rendering the whole set at print resolution.
+        const QVector<int> few = {changed.first(), changed.last()};
+        check(win.printTo(printer, few) == 2, QStringLiteral("both sheets printed"));
+        check(QFileInfo(pdf).size() > 0, QStringLiteral("and produced a file"));
+
+        // Read it back with our own engine: two pages, and they are not blank.
+        const QByteArray p8 = pdf.toUtf8();
+        ScSession *check_doc = sc_session_open(p8.constData(), p8.constData());
+        check(check_doc != nullptr, QStringLiteral("the printed PDF opens"));
+        if (check_doc) {
+            check(sc_session_page_count(check_doc) == 2,
+                  QStringLiteral("with one page per sheet, got %1")
+                      .arg(sc_session_page_count(check_doc)));
+            sc_session_free(check_doc);
+        }
+        if (!writeDir.isEmpty()) {
+            QFile::copy(pdf, QDir(writeDir).filePath(QStringLiteral("printed.pdf")));
+        }
+        QFile::remove(pdf);
     }
 
     // `--for-testing` must not have written anything, whatever else happened

@@ -5,6 +5,7 @@
 #include "CompareView.h"
 #include "Session.h"
 
+#include <QActionGroup>
 #include <QApplication>
 #include <QDockWidget>
 #include <QFile>
@@ -13,6 +14,7 @@
 #include <QCheckBox>
 #include <QLabel>
 #include <QCloseEvent>
+#include <QMenu>
 #include <QMenuBar>
 #include <QPageLayout>
 #include <QPainter>
@@ -21,6 +23,7 @@
 #include <QProgressDialog>
 #include <QMessageBox>
 #include <QStatusBar>
+#include <QToolBar>
 #include <QTreeWidget>
 #include <QVBoxLayout>
 
@@ -100,6 +103,14 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
     statusBar()->addWidget(m_status);
 
     buildMenus();
+    buildToolBar();
+
+    // The same controls on a right-click, because that is where a reader
+    // reaches for "do something to this bit of the drawing".
+    m_view->setContextMenuPolicy(Qt::CustomContextMenu);
+    connect(m_view, &QWidget::customContextMenuRequested, this, &MainWindow::showViewMenu);
+    connect(m_view, &CompareView::regionArmedChanged, this, [this](bool) { updateStatus(); });
+
     updateStatus();
 }
 
@@ -115,13 +126,16 @@ void MainWindow::buildMenus() {
     QAction *rep = file->addAction(tr("&Export Change Report…"), this,
                                    &MainWindow::exportReport);
     rep->setObjectName(QStringLiteral("exportReport"));
+    m_needSession.append(rep);
     file->addSeparator();
     QAction *pr = file->addAction(tr("&Print…"), this, &MainWindow::printSheets);
     pr->setObjectName(QStringLiteral("print"));
     pr->setShortcut(QKeySequence::Print);
+    m_needSession.append(pr);
     QAction *prc = file->addAction(tr("Print &Changed Sheets…"), this,
                                    &MainWindow::printChangedSheets);
     prc->setObjectName(QStringLiteral("printChanged"));
+    m_needSession.append(prc);
     file->addSeparator();
     QAction *quit = file->addAction(tr("&Quit"), qApp, &QApplication::quit);
     quit->setShortcut(QKeySequence::Quit);
@@ -130,26 +144,39 @@ void MainWindow::buildMenus() {
     // Bare 1/2/3 rather than a modifier: switching what you are looking at is
     // the most frequent thing a reader does here, and `Tab` next to them makes
     // the pair a blink comparator.
-    QAction *overlay = view->addAction(tr("&Overlay"), this, [this] { setViewMode(0); });
-    overlay->setObjectName(QStringLiteral("overlay"));
-    overlay->setShortcut(Qt::Key_3);
-    QAction *onlyA = view->addAction(tr("Only &A"), this, [this] { setViewMode(1); });
-    onlyA->setObjectName(QStringLiteral("onlyA"));
-    onlyA->setShortcut(Qt::Key_1);
-    QAction *onlyB = view->addAction(tr("Only &B"), this, [this] { setViewMode(2); });
-    onlyB->setObjectName(QStringLiteral("onlyB"));
-    onlyB->setShortcut(Qt::Key_2);
+    // Checkable and in a group: which of the three you are looking at is the
+    // one thing the window must never leave you guessing about, and a bare key
+    // that changes it silently is exactly how you end up guessing.
+    m_modeGroup = new QActionGroup(this);
+    m_overlayAct = view->addAction(tr("&Overlay"), this, [this] { setViewMode(0); });
+    m_overlayAct->setObjectName(QStringLiteral("overlay"));
+    m_overlayAct->setShortcut(Qt::Key_3);
+    m_onlyAAct = view->addAction(tr("Only &A"), this, [this] { setViewMode(1); });
+    m_onlyAAct->setObjectName(QStringLiteral("onlyA"));
+    m_onlyAAct->setShortcut(Qt::Key_1);
+    m_onlyBAct = view->addAction(tr("Only &B"), this, [this] { setViewMode(2); });
+    m_onlyBAct->setObjectName(QStringLiteral("onlyB"));
+    m_onlyBAct->setShortcut(Qt::Key_2);
+    for (QAction *a : {m_overlayAct, m_onlyAAct, m_onlyBAct}) {
+        a->setCheckable(true);
+        m_modeGroup->addAction(a);
+        m_needSession.append(a);
+    }
+    m_overlayAct->setChecked(true);
     QAction *flip = view->addAction(tr("&Flip A / B"), this, &MainWindow::blink);
     flip->setObjectName(QStringLiteral("flip"));
     flip->setShortcut(Qt::Key_Tab);
+    m_needSession.append(flip);
     view->addSeparator();
     // A checkable pair rather than a third view mode: this changes how the
     // viewport is arranged, not what the core composes, and the A/B/overlay
     // choice still applies inside the single-sheet layout.
     QAction *sbs = view->addAction(tr("&Side by Side"));
+    m_sideBySideAct = sbs;
     sbs->setObjectName(QStringLiteral("sideBySide"));
     sbs->setCheckable(true);
     sbs->setShortcut(Qt::Key_4);
+    m_needSession.append(sbs);
     connect(sbs, &QAction::toggled, this, [this](bool on) {
         m_view->setLayout(on ? CompareView::Layout::SideBySide : CompareView::Layout::Single);
         updateStatus();
@@ -158,10 +185,13 @@ void MainWindow::buildMenus() {
     QAction *fw = view->addAction(tr("Fit &Width"), this,
                                   [this] { m_view->setFit(CompareView::Fit::Width); });
     fw->setShortcut(Qt::CTRL | Qt::Key_0);
-    view->addAction(tr("Fit &Page"), this, [this] { m_view->setFit(CompareView::Fit::Page); });
+    m_needSession.append(fw);
+    m_needSession.append(
+        view->addAction(tr("Fit &Page"), this, [this] { m_view->setFit(CompareView::Fit::Page); }));
     QAction *zi = view->addAction(tr("Zoom &In"), this,
                                   [this] { m_view->setZoom(m_view->zoom() * 1.25); });
     zi->setShortcut(QKeySequence::ZoomIn);
+    m_needSession.append(zi);
     view->addSeparator();
     QAction *col = view->addAction(tr("Overlay &Colours…"), this, [this] {
         if (!m_session) {
@@ -174,21 +204,26 @@ void MainWindow::buildMenus() {
         }
     });
     col->setObjectName(QStringLiteral("overlayColours"));
+    m_needSession.append(col);
     view->addSeparator();
     QAction *zo = view->addAction(tr("Zoom &Out"), this,
                                   [this] { m_view->setZoom(m_view->zoom() / 1.25); });
     zo->setShortcut(QKeySequence::ZoomOut);
+    m_needSession.append(zo);
 
     QMenu *cmp = menuBar()->addMenu(tr("&Compare"));
     QAction *next = cmp->addAction(tr("&Next Change"), this, [this] { stepChange(1); });
     next->setObjectName(QStringLiteral("next"));
     next->setShortcut(Qt::CTRL | Qt::Key_Period);
+    m_needSession.append(next);
     QAction *prev = cmp->addAction(tr("&Previous Change"), this, [this] { stepChange(-1); });
     prev->setObjectName(QStringLiteral("prev"));
     prev->setShortcut(Qt::CTRL | Qt::Key_Comma);
+    m_needSession.append(prev);
     cmp->addSeparator();
-    cmp->addAction(tr("Scan &Every Sheet"), this, &MainWindow::scanEverySheet)
-        ->setObjectName(QStringLiteral("scanAll"));
+    QAction *scanAll = cmp->addAction(tr("Scan &Every Sheet"), this, &MainWindow::scanEverySheet);
+    scanAll->setObjectName(QStringLiteral("scanAll"));
+    m_needSession.append(scanAll);
     m_acceptSuggestions =
         cmp->addAction(tr("Exclude &Suggested Regions"), this, &MainWindow::acceptSuggestions);
     m_acceptSuggestions->setObjectName(QStringLiteral("acceptSuggestions"));
@@ -197,23 +232,38 @@ void MainWindow::buildMenus() {
     QAction *sr = cmp->addAction(tr("Shift Pairing &Right"), this, [this] { nudgePairing(1); });
     sr->setObjectName(QStringLiteral("shiftRight"));
     sr->setShortcut(Qt::ALT | Qt::SHIFT | Qt::Key_Right);
+    m_needSession.append(sr);
     QAction *sl = cmp->addAction(tr("Shift Pairing &Left"), this, [this] { nudgePairing(-1); });
     sl->setObjectName(QStringLiteral("shiftLeft"));
     sl->setShortcut(Qt::ALT | Qt::SHIFT | Qt::Key_Left);
+    m_needSession.append(sl);
     QAction *am = cmp->addAction(tr("&Match Sheets by Content"), this, &MainWindow::matchSheets);
     am->setObjectName(QStringLiteral("autoMatch"));
+    m_needSession.append(am);
     QAction *s0 = cmp->addAction(tr("Reset Pairing"), this, [this] {
         if (m_session) {
             m_session->setPageDelta(0);
         }
     });
     s0->setShortcut(Qt::ALT | Qt::SHIFT | Qt::Key_Home);
+    m_needSession.append(s0);
     cmp->addSeparator();
     QAction *tp = cmp->addAction(tr("More &Tolerance"), this, [this] { nudgeTolerance(1); });
     tp->setShortcut(Qt::ALT | Qt::SHIFT | Qt::Key_Plus);
+    m_needSession.append(tp);
     QAction *tm = cmp->addAction(tr("Less Tolerance"), this, [this] { nudgeTolerance(-1); });
     tm->setShortcut(Qt::ALT | Qt::SHIFT | Qt::Key_Minus);
+    m_needSession.append(tm);
     cmp->addSeparator();
+    // Ctrl+drag has always done this, and nobody found it. An entry that arms
+    // the next drag puts the feature where a reader looks for it, and leaves
+    // Ctrl+drag working for anyone who already knows.
+    m_excludeRegion = cmp->addAction(tr("Exclude a &Region…"), this, [this] {
+        m_view->armRegion();
+    });
+    m_excludeRegion->setObjectName(QStringLiteral("excludeRegion"));
+    m_excludeRegion->setShortcut(Qt::ALT | Qt::SHIFT | Qt::Key_I);
+    m_needSession.append(m_excludeRegion);
     QAction *clr = cmp->addAction(tr("&Clear Excluded Regions"), this, [this] {
         if (m_session) {
             m_session->clearIgnoreRects();
@@ -222,6 +272,80 @@ void MainWindow::buildMenus() {
     });
     clr->setObjectName(QStringLiteral("clearRegions"));
     clr->setShortcut(Qt::ALT | Qt::SHIFT | Qt::Key_C);
+    m_needSession.append(clr);
+
+    enableSessionActions(false);
+}
+
+void MainWindow::buildToolBar() {
+    // Text, not icons: the four things this shows are words, there is no icon
+    // set that says "only the earlier revision", and a toolbar of guesses is
+    // worse than no toolbar. It exists so nothing here is reachable only by a
+    // key nobody was told about.
+    auto *bar = addToolBar(tr("Comparison"));
+    bar->setObjectName(QStringLiteral("toolbar"));
+    bar->setToolButtonStyle(Qt::ToolButtonTextOnly);
+    bar->setMovable(false);
+    bar->addAction(findChild<QAction *>(QStringLiteral("open")));
+    bar->addSeparator();
+    bar->addAction(m_onlyAAct);
+    bar->addAction(m_onlyBAct);
+    bar->addAction(m_overlayAct);
+    bar->addAction(m_sideBySideAct);
+    bar->addSeparator();
+    bar->addAction(findChild<QAction *>(QStringLiteral("prev")));
+    bar->addAction(findChild<QAction *>(QStringLiteral("next")));
+    bar->addSeparator();
+    bar->addAction(m_excludeRegion);
+
+    // The shortcut in the tooltip, so the toolbar teaches the keys rather than
+    // replacing them.
+    for (QAction *a : bar->actions()) {
+        if (a && !a->shortcut().isEmpty()) {
+            a->setToolTip(tr("%1  (%2)").arg(a->text().remove(QLatin1Char('&')),
+                                             a->shortcut().toString(QKeySequence::NativeText)));
+        }
+    }
+}
+
+void MainWindow::showViewMenu(const QPoint &at) {
+    QMenu m(this);
+    m.addAction(m_onlyAAct);
+    m.addAction(m_onlyBAct);
+    m.addAction(m_overlayAct);
+    m.addAction(m_sideBySideAct);
+    m.addSeparator();
+    m.addAction(m_excludeRegion);
+    m.addAction(findChild<QAction *>(QStringLiteral("clearRegions")));
+    m.exec(m_view->mapToGlobal(at));
+}
+
+void MainWindow::enableSessionActions(bool on) {
+    for (QAction *a : m_needSession) {
+        if (a) {
+            a->setEnabled(on);
+        }
+    }
+}
+
+void MainWindow::syncViewActions() {
+    if (!m_session) {
+        return;
+    }
+    QAction *want = m_overlayAct;
+    switch (m_session->viewMode()) {
+    case SC_VIEW_MODE_ONLY_A:
+        want = m_onlyAAct;
+        break;
+    case SC_VIEW_MODE_ONLY_B:
+        want = m_onlyBAct;
+        break;
+    default:
+        break;
+    }
+    // setChecked on a grouped action unchecks the others; the actions are
+    // connected to triggered(), not toggled(), so this cannot loop.
+    want->setChecked(true);
 }
 
 bool MainWindow::openPair(const QString &pathA, const QString &pathB) {
@@ -250,6 +374,8 @@ bool MainWindow::openPair(const QString &pathA, const QString &pathB) {
     m_atSheet = 0;
     m_atIndex = -1;
     m_acceptSuggestions->setEnabled(false);
+    enableSessionActions(true);
+    syncViewActions();
     rebuildSheetList();
     updateStatus();
     // Nobody opens a comparison to look at sheet 1; they want to know which
@@ -558,6 +684,7 @@ void MainWindow::chooseAndOpen() {
 void MainWindow::setViewMode(int mode) {
     if (m_session) {
         m_session->setViewMode(ScViewMode(mode));
+        syncViewActions();
         updateStatus();
     }
 }
@@ -581,6 +708,7 @@ void MainWindow::blink() {
         m_session->setViewMode(SC_VIEW_MODE_ONLY_A);
         break;
     }
+    syncViewActions();
     updateStatus();
 }
 
@@ -801,7 +929,13 @@ void MainWindow::stepChange(int direction) {
 
 void MainWindow::updateStatus() {
     if (!m_session) {
-        m_status->setText(tr("Open two revisions of a schematic to compare them."));
+        m_status->setText(tr("Open two revisions of a drawing to compare them."));
+        return;
+    }
+    if (m_view->regionArmed()) {
+        m_status->setText(
+            tr("Drag a rectangle over the part to leave out of the comparison.  "
+               "Escape cancels."));
         return;
     }
     const int page = m_view->currentPage();

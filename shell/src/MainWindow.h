@@ -11,6 +11,7 @@ class QLabel;
 class QPainter;
 class QPrinter;
 class QAction;
+class QActionGroup;
 class QCheckBox;
 class QTreeWidget;
 class Session;
@@ -37,6 +38,7 @@ class MainWindow : public QMainWindow {
     void scanEverySheet();
     void onSweepProgressed();
     void acceptSuggestions();
+    void showViewMenu(const QPoint &at);
 
   public:
     // The half of the print path that does the work, without the dialog. Split
@@ -61,6 +63,12 @@ class MainWindow : public QMainWindow {
 
   private:
     void buildMenus();
+    void buildToolBar();
+    // Everything that needs a comparison open is switched off until there is
+    // one, so a key or a button that does nothing looks like it does nothing
+    // rather than looking broken.
+    void enableSessionActions(bool on);
+    void syncViewActions();
     void persist();
     void printRange(const QVector<int> &sheets);
     void paintSheetForPrint(QPainter &g, QPrinter &printer, int sheet);
@@ -84,4 +92,12 @@ class MainWindow : public QMainWindow {
     int m_atSheet = 0;
     int m_atIndex = -1;
     QAction *m_acceptSuggestions = nullptr;
+    QAction *m_excludeRegion = nullptr;
+    QAction *m_overlayAct = nullptr;
+    QAction *m_onlyAAct = nullptr;
+    QAction *m_onlyBAct = nullptr;
+    QAction *m_sideBySideAct = nullptr;
+    QActionGroup *m_modeGroup = nullptr;
+    // Actions that need a comparison; see enableSessionActions.
+    QVector<QAction *> m_needSession;
 };

@@ -3,6 +3,7 @@
 
 #include "Session.h"
 
+#include <QKeyEvent>
 #include <QMouseEvent>
 #include <QPainter>
 #include <QScrollBar>
@@ -38,6 +39,25 @@ void CompareView::setSession(Session *s) {
     applyFit();
     verticalScrollBar()->setValue(0);
     emit currentPageChanged(currentPage());
+}
+
+void CompareView::armRegion() {
+    if (!m_session || m_armed) {
+        return;
+    }
+    m_armed = true;
+    viewport()->setCursor(Qt::CrossCursor);
+    setFocus(Qt::OtherFocusReason);
+    emit regionArmedChanged(true);
+}
+
+void CompareView::disarm() {
+    if (!m_armed) {
+        return;
+    }
+    m_armed = false;
+    viewport()->unsetCursor();
+    emit regionArmedChanged(false);
 }
 
 void CompareView::invalidate() {
@@ -267,6 +287,12 @@ void CompareView::paintEvent(QPaintEvent *e) {
     QPainter g(viewport());
     g.fillRect(e->rect(), palette().dark());
     if (!m_session || m_layout.isEmpty()) {
+        // An empty grey rectangle looks like a comparison that found nothing.
+        // Say which it is, and how to start one.
+        g.setPen(palette().brightText().color());
+        g.drawText(viewport()->rect(), Qt::AlignCenter,
+                   tr("Open two revisions of a drawing to compare them.\n\n"
+                      "File \u25b8 Compare Two Files\u2026   (Ctrl+O)"));
         return;
     }
     const QPoint o = contentOrigin();
@@ -316,6 +342,15 @@ void CompareView::resizeEvent(QResizeEvent *e) {
     }
 }
 
+void CompareView::keyPressEvent(QKeyEvent *e) {
+    if (m_armed && e->key() == Qt::Key_Escape) {
+        disarm();
+        e->accept();
+        return;
+    }
+    QAbstractScrollArea::keyPressEvent(e);
+}
+
 void CompareView::scrollContentsBy(int dx, int dy) {
     QAbstractScrollArea::scrollContentsBy(dx, dy);
     viewport()->update();
@@ -350,7 +385,7 @@ bool CompareView::contentToPage(const QPoint &content, int *page, QPointF *pageP
 }
 
 void CompareView::mousePressEvent(QMouseEvent *e) {
-    if (e->button() == Qt::LeftButton && (e->modifiers() & Qt::ControlModifier)) {
+    if (e->button() == Qt::LeftButton && (m_armed || (e->modifiers() & Qt::ControlModifier))) {
         m_dragging = true;
         m_dragStart = e->pos() + contentOrigin();
         m_dragNow = m_dragStart;
@@ -378,8 +413,9 @@ void CompareView::mouseReleaseEvent(QMouseEvent *e) {
     const QRect r = QRect(m_dragStart, m_dragNow).normalized();
     viewport()->update();
     if (r.width() < 4 || r.height() < 4) {
-        return; // a click, not a drag
+        return; // a click, not a drag; still armed, so try again
     }
+    disarm();
     int page = 0;
     QPointF a, b;
     if (contentToPage(r.topLeft(), &page, &a)) {

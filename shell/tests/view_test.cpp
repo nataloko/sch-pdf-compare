@@ -134,6 +134,15 @@ int main(int argc, char **argv) {
 
     check(status->text().contains(QStringLiteral("Open two")),
           QStringLiteral("with nothing open it says so"));
+    // Nothing that needs a comparison may look available before there is one:
+    // a key or a button that quietly does nothing reads as broken, and that is
+    // what "the keys don't work" turned out to mean.
+    for (const char *name : {"overlay", "onlyA", "onlyB", "flip", "sideBySide", "next", "prev",
+                             "excludeRegion", "clearRegions", "scanAll", "autoMatch"}) {
+        auto *a = win.findChild<QAction *>(QString::fromLatin1(name));
+        check(a && !a->isEnabled(),
+              QStringLiteral("%1 is off until a pair is open").arg(QString::fromLatin1(name)));
+    }
     shot(&win, QStringLiteral("empty"));
 
     // Written into the build tree by `gen-fixtures`, so everything below runs
@@ -220,6 +229,27 @@ int main(int argc, char **argv) {
     win.findChild<QAction *>(QStringLiteral("clearRegions"))->trigger();
     QTest::qWait(20);
     check(s->ignoreRects().isEmpty(), QStringLiteral("regions clear"));
+
+    // Excluding a region by hand. Ctrl+drag has always done it and nobody
+    // found it, so the menu entry arms the next plain drag instead; this is
+    // that path, end to end.
+    auto *exclude = win.findChild<QAction *>(QStringLiteral("excludeRegion"));
+    check(exclude && exclude->isEnabled(), QStringLiteral("excluding a region is offered"));
+    exclude->trigger();
+    check(view->regionArmed(), QStringLiteral("and arms the next drag"));
+    check(status->text().contains(QStringLiteral("Drag a rectangle")),
+          QStringLiteral("and says what to do: '%1'").arg(status->text()));
+    QWidget *vp = view->viewport();
+    QTest::mousePress(vp, Qt::LeftButton, Qt::NoModifier, QPoint(60, 60));
+    QTest::mouseMove(vp, QPoint(160, 140));
+    QTest::mouseRelease(vp, Qt::LeftButton, Qt::NoModifier, QPoint(160, 140));
+    QTest::qWait(20);
+    check(s->ignoreRects().size() == 1,
+          QStringLiteral("a plain drag excludes a region, got %1").arg(s->ignoreRects().size()));
+    check(!view->regionArmed(), QStringLiteral("and disarms, so the next drag scrolls"));
+    shot(&win, QStringLiteral("region-excluded-by-hand"));
+    win.findChild<QAction *>(QStringLiteral("clearRegions"))->trigger();
+    QTest::qWait(20);
 
     // Nudging the pairing changes which sheets face each other.
     win.findChild<QAction *>(QStringLiteral("shiftRight"))->trigger();

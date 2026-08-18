@@ -57,8 +57,17 @@ class CompareView : public QAbstractScrollArea {
     // Everything drawn is stale; drop the cache and repaint.
     void invalidate();
 
+    // Arms the next drag to mark a region to exclude, so the reader can reach
+    // the feature from a menu or a toolbar instead of having to know that
+    // Ctrl+drag does it. One shot: it disarms as soon as a rectangle is drawn,
+    // or when Escape is pressed.
+    void armRegion();
+    bool regionArmed() const { return m_armed; }
+
   signals:
     void currentPageChanged(int page);
+    // Whether the next drag marks a region to exclude. The window says so.
+    void regionArmedChanged(bool armed);
     // The reader dragged out a rectangle with Ctrl held.
     void regionSelected(int page, const QRectF &pageRect);
     void zoomChanged(double zoom);
@@ -70,6 +79,7 @@ class CompareView : public QAbstractScrollArea {
     void mousePressEvent(QMouseEvent *e) override;
     void mouseMoveEvent(QMouseEvent *e) override;
     void mouseReleaseEvent(QMouseEvent *e) override;
+    void keyPressEvent(QKeyEvent *e) override;
     void scrollContentsBy(int dx, int dy) override;
     // Tab is a comparison control here — the blink comparator — so it must not
     // be eaten by the focus chain before the shortcut sees it.
@@ -106,8 +116,12 @@ class CompareView : public QAbstractScrollArea {
     QHash<quint64, QImage> m_tiles;
     QImage m_blank;
 
+    void disarm();
+
     // Ctrl+drag, in content coordinates.
     bool m_dragging = false;
+    // Armed from the menu: the next plain drag marks a region, no Ctrl needed.
+    bool m_armed = false;
     QPoint m_dragStart;
     QPoint m_dragNow;
 };

@@ -864,6 +864,46 @@ pub unsafe extern "C" fn sc_session_suggested(
     }
 }
 
+/// Puts the settings in `dir` rather than in the platform's own place.
+///
+/// Pass null to go back to the platform's. A test uses this to write somewhere
+/// harmless, and a portable installation to keep its settings beside itself.
+/// Doing the same with an environment variable would mean knowing which one the
+/// platform reads and trusting the frontend's way of setting it to reach this
+/// process — neither of which held.
+///
+/// # Safety
+/// `dir` must be null or a NUL-terminated UTF-8 path.
+#[no_mangle]
+pub unsafe extern "C" fn sc_settings_set_dir(dir: *const c_char) {
+    sc_session::set_settings_dir(cstr(dir).map(std::path::PathBuf::from));
+}
+
+thread_local! {
+    /// Backing for [`sc_settings_path`]'s borrowed string.
+    static SETTINGS_PATH: RefCell<CString> = RefCell::new(CString::default());
+}
+
+/// Where the settings are read from and written to.
+///
+/// Empty when the platform says nothing about where they should go, in which
+/// case nothing is saved. The string is borrowed and valid until the next call
+/// to this function on the same thread.
+///
+/// # Safety
+/// Callable with no preconditions.
+#[no_mangle]
+pub unsafe extern "C" fn sc_settings_path() -> *const c_char {
+    let text = sc_session::settings_path()
+        .map(|p| p.to_string_lossy().into_owned())
+        .unwrap_or_default();
+    SETTINGS_PATH.with(|slot| {
+        let mut slot = slot.borrow_mut();
+        *slot = CString::new(text).unwrap_or_default();
+        slot.as_ptr()
+    })
+}
+
 /// Loads this pair's saved state: the excluded regions worked out for it last
 /// time, and the tolerance and colours in force.
 ///

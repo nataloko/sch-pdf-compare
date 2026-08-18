@@ -25,7 +25,7 @@ mod tile;
 mod wakeup;
 
 pub use scan::{SheetChanges, SCAN_DPI};
-pub use settings::Settings;
+pub use settings::{set_settings_dir, settings_path, Settings};
 pub use sweep::{suggest_ignores, Sweep, SweepStatus};
 pub use wakeup::WakeupHandle;
 

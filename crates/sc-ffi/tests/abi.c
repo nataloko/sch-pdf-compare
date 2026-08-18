@@ -100,6 +100,8 @@ static void null_session_is_survivable(void) {
     check(sc_session_save_settings(NULL) < 0, "save_settings(NULL) fails");
     /* Null out-params are allowed here: a caller may want only one of the two. */
     sc_last_pair(NULL, NULL);
+    check(sc_settings_path() != NULL, "settings_path is never null");
+    sc_settings_set_dir(NULL); /* back to the platform's own place */
 }
 
 static void null_out_params_are_survivable(void) {

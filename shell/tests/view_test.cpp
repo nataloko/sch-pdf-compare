@@ -99,14 +99,18 @@ static int expected(const QString &set, const QString &key) {
 }
 
 int main(int argc, char **argv) {
-    // Point the settings at a scratch directory before anything can read them,
-    // while this is still single-threaded. The real one belongs to whoever is
-    // running the tests and is not ours to write into.
+    // Point the settings at a scratch directory: the real one belongs to whoever
+    // is running the tests and is not ours to write into.
+    //
+    // Named outright rather than set through the environment. The first attempt
+    // set `XDG_CONFIG_HOME`, which passed on Linux and quietly wrote to the real
+    // location on Windows, where the core reads `APPDATA` — and it is the core's
+    // own answer, below, that the assertions use, so the two cannot drift apart
+    // again.
     const QString cfg = QDir::temp().filePath(QStringLiteral("sch-pdf-compare-viewtest"));
     QDir(cfg).removeRecursively();
-    qputenv("XDG_CONFIG_HOME", cfg.toLocal8Bit());
-    const QString settingsFile =
-        cfg + QStringLiteral("/sch-pdf-compare/settings.json");
+    sc_settings_set_dir(cfg.toUtf8().constData());
+    const QString settingsFile = QString::fromUtf8(sc_settings_path());
 
     QApplication app(argc, argv);
     for (int i = 1; i + 1 < argc; i++) {
@@ -389,6 +393,7 @@ int main(int argc, char **argv) {
 
     // `--for-testing` must not have written anything, whatever else happened
     // above — and plenty above excluded regions and changed the tolerance.
+    check(!settingsFile.isEmpty(), QStringLiteral("the core says where its settings go"));
     check(!QFileInfo::exists(settingsFile),
           QStringLiteral("--for-testing wrote no settings"));
 
@@ -406,7 +411,8 @@ int main(int argc, char **argv) {
         QTest::qWait(50);
         real.close();
         QTest::qWait(50);
-        check(QFileInfo::exists(settingsFile), QStringLiteral("a normal run saves them"));
+        check(QFileInfo::exists(settingsFile),
+              QStringLiteral("a normal run saves them, at %1").arg(settingsFile));
     }
     {
         MainWindow again;

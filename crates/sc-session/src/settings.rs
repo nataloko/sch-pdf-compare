@@ -12,6 +12,26 @@
 //! a text editor.
 
 use std::path::PathBuf;
+use std::sync::Mutex;
+
+/// A directory named by the caller, used instead of the platform's own.
+///
+/// A test has to put the settings somewhere harmless, and doing that with an
+/// environment variable means knowing which one — `XDG_CONFIG_HOME` or
+/// `APPDATA` — and trusting that the frontend's way of setting it reaches this
+/// process's view of the environment. Neither held: the window test set the
+/// Unix one and passed on Linux while writing to the real location on Windows.
+///
+/// Naming the directory outright removes both problems. It is also the shape a
+/// portable installation wants, where the settings live beside the application.
+static SETTINGS_DIR: Mutex<Option<PathBuf>> = Mutex::new(None);
+
+/// Puts the settings in `dir` rather than in the platform's own place.
+pub fn set_settings_dir(dir: Option<PathBuf>) {
+    if let Ok(mut slot) = SETTINGS_DIR.lock() {
+        *slot = dir;
+    }
+}
 
 use sc_diff::{Options, RectF, Rgb};
 use serde::{Deserialize, Serialize};
@@ -217,7 +237,12 @@ impl Settings {
 /// `$XDG_CONFIG_HOME/sch-pdf-compare/settings.json`, or the platform's
 /// equivalent. `None` when the environment says nothing about where to put it,
 /// in which case nothing is saved and nothing breaks.
-fn settings_path() -> Option<PathBuf> {
+pub fn settings_path() -> Option<PathBuf> {
+    if let Ok(slot) = SETTINGS_DIR.lock() {
+        if let Some(dir) = slot.as_ref() {
+            return Some(dir.join("sch-pdf-compare").join("settings.json"));
+        }
+    }
     let dir = config_dir()?;
     Some(dir.join("sch-pdf-compare").join("settings.json"))
 }

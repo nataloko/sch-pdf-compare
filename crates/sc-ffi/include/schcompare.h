@@ -552,6 +552,32 @@ int32_t sc_session_suggested_count(const ScSession *s);
 ScStatus sc_session_suggested(const ScSession *s, size_t index, ScRectF *out);
 
 /**
+ * Puts the settings in `dir` rather than in the platform's own place.
+ *
+ * Pass null to go back to the platform's. A test uses this to write somewhere
+ * harmless, and a portable installation to keep its settings beside itself.
+ * Doing the same with an environment variable would mean knowing which one the
+ * platform reads and trusting the frontend's way of setting it to reach this
+ * process — neither of which held.
+ *
+ * # Safety
+ * `dir` must be null or a NUL-terminated UTF-8 path.
+ */
+void sc_settings_set_dir(const char *dir);
+
+/**
+ * Where the settings are read from and written to.
+ *
+ * Empty when the platform says nothing about where they should go, in which
+ * case nothing is saved. The string is borrowed and valid until the next call
+ * to this function on the same thread.
+ *
+ * # Safety
+ * Callable with no preconditions.
+ */
+const char *sc_settings_path(void);
+
+/**
  * Loads this pair's saved state: the excluded regions worked out for it last
  * time, and the tolerance and colours in force.
  *

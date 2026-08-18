@@ -20,6 +20,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             TextChangeKind::Added => {
                 println!("  {:6.0},{:6.0}  added   {}", c.rect.x, c.rect.y, c.after)
             }
+            TextChangeKind::Moved => {
+                println!("  {:6.0},{:6.0}  moved   {}", c.rect.x, c.rect.y, c.before)
+            }
         }
     }
     Ok(())

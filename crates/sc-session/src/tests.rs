@@ -487,3 +487,100 @@ fn an_unmatched_sheet_reads_as_entirely_removed() {
         "virtual sheet 1 is B's orphaned first sheet, so all of it is new"
     );
 }
+
+/// Scans the whole set the plain way, for tests that want the sweep's output
+/// without the sweep.
+fn scan_all(s: &Session) -> Vec<SheetChanges> {
+    (1..=s.page_count())
+        .map(|p| s.scan_page(p).expect("scans"))
+        .collect()
+}
+
+#[test]
+fn the_report_summarises_moves_rather_than_listing_them() {
+    // Sheet 8 of this pair moves 354 labels and changes 10 things. Listing the
+    // moves buries the changes, so the report counts them in a sentence.
+    let Some(s) = session(A10, B03) else { return };
+    let all = scan_all(&s);
+    let r = s.report(&all);
+    assert!(r.contains("moved without changing"), "moves are summarised");
+    // And a sheet that was substantially re-laid-out says so rather than
+    // stopping its table without explanation.
+    assert!(r.contains("not listed"), "a truncated table admits it");
+    assert!(r.contains("re-laid-out"));
+}
+
+#[test]
+fn the_report_says_what_changed_and_where() {
+    let Some(s) = session(A10, B03) else { return };
+    let all = scan_all(&s);
+    let r = s.report(&all);
+
+    assert!(r.contains("REV-P1.pdf"), "names the earlier revision");
+    assert!(r.contains("REV-P2.pdf"), "names the later one");
+    assert!(r.contains("21 sheets compared"));
+    assert!(r.contains("## Sheet 2"), "has a section per changed sheet");
+    // The net renames are the point of the whole thing.
+    assert!(
+        r.contains("`NET_ALPHA`") && r.contains("`NET_BRAVO`"),
+        "spells out the renames"
+    );
+    assert!(
+        r.contains("| Was | Is now |"),
+        "as a table somebody can paste"
+    );
+}
+
+#[test]
+fn the_report_says_when_part_of_the_sheet_was_not_compared() {
+    // A report that quietly omitted this would be actively misleading: someone
+    // reading it would take "nothing changed there" from "we did not look".
+    let Some(mut s) = session(A10, B03) else {
+        return;
+    };
+    let (w, h) = s.page_size(1).expect("has a sheet 1");
+    s.add_ignore_rect(RectF::new(w * 0.7, h * 0.85, w * 0.3, h * 0.15));
+    let all = scan_all(&s);
+    let r = s.report(&all);
+    assert!(r.contains("excluded from the comparison on every sheet"));
+    assert!(r.contains("not compared"));
+}
+
+#[test]
+fn the_report_admits_a_half_finished_scan() {
+    let Some(s) = session(A10, B03) else { return };
+    let few: Vec<_> = (1..=4).map(|p| s.scan_page(p).expect("scans")).collect();
+    let r = s.report(&few);
+    assert!(
+        r.contains("Only 4 of 21 sheets"),
+        "says so rather than reading as complete"
+    );
+}
+
+#[test]
+fn a_report_on_two_identical_documents_says_nothing_changed() {
+    let Some(s) = session(A10, A10) else { return };
+    let all = scan_all(&s);
+    let r = s.report(&all);
+    assert!(r.contains("Nothing changed."));
+    assert!(!r.contains("## Sheet"), "and lists no sheets");
+}
+
+#[test]
+fn a_net_name_cannot_break_the_table() {
+    // Schematic text is full of characters Markdown treats as syntax. A `|` in a
+    // net name would split a row and silently move every later column.
+    let Some(s) = session(A10, B03) else { return };
+    let all = scan_all(&s);
+    let r = s.report(&all);
+    for line in r
+        .lines()
+        .filter(|l| l.starts_with("| ") && !l.starts_with("| ---"))
+    {
+        assert_eq!(
+            line.matches(" | ").count(),
+            1,
+            "row has more than two cells: {line}"
+        );
+    }
+}

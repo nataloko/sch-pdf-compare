@@ -107,6 +107,11 @@ QVector<Session::TextChange> Session::textChanges(int page) {
     return out;
 }
 
+QString Session::report() {
+    const char *r = sc_session_report(m_s);
+    return r ? QString::fromUtf8(r) : QString();
+}
+
 bool Session::sweepCollected() const {
     // The notifier is dropped by `onWakeup` exactly when the pump reports that
     // it has taken the last results and the sweep is done, so its absence is

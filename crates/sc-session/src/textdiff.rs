@@ -1,7 +1,7 @@
 // Copyright (c) the sch-pdf-compare authors. AGPL-3.0-or-later; see LICENSE.
 
 use crate::Session;
-use sc_diff::{diff_words, TextChange, SAME_WORD_PT};
+use sc_diff::{diff_words, TextChange};
 use sc_render::Result;
 
 impl Session {
@@ -33,6 +33,6 @@ impl Session {
         } else {
             Vec::new()
         };
-        Ok(diff_words(&wa, &wb, SAME_WORD_PT))
+        Ok(diff_words(&wa, &wb))
     }
 }

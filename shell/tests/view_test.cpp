@@ -16,7 +16,9 @@
 #include <QAction>
 #include <QApplication>
 #include <QDir>
+#include <QFile>
 #include <QFileInfo>
+#include <QFile>
 #include <QFileInfo>
 #include <QLabel>
 #include <QTest>
@@ -212,6 +214,20 @@ int main(int argc, char **argv) {
     }
     check(renamed, QStringLiteral("and it spells out the net rename"));
     shot(&win, QStringLiteral("text-changes"));
+
+    // The report is the thing that leaves the application. Written from what
+    // has already been scanned, so it does not re-render eighty-five sheets.
+    const QString md = s->report();
+    check(md.contains(QStringLiteral("# What changed")), QStringLiteral("the report has a title"));
+    check(md.contains(QStringLiteral("`NET_ALPHA`")),
+          QStringLiteral("and carries the net renames into it"));
+    check(md.contains(QStringLiteral("## Sheet 2")), QStringLiteral("sheet by sheet"));
+    if (!writeDir.isEmpty()) {
+        QFile out(QDir(writeDir).filePath(QStringLiteral("report.md")));
+        if (out.open(QIODevice::WriteOnly | QIODevice::Text)) {
+            out.write(md.toUtf8());
+        }
+    }
 
     // `--for-testing` must not have written anything, whatever else happened
     // above — and plenty above excluded regions and changed the tolerance.

@@ -41,6 +41,13 @@ pub enum TextChangeKind {
     /// In the same place on both, saying something different. The one a reader
     /// most wants: a component value that moved from 10k to 12k.
     Changed = 2,
+    /// The same text, elsewhere on the sheet.
+    ///
+    /// Worth telling apart from an addition and a removal, which is what it
+    /// otherwise looks like — twice. A sheet that was re-laid-out moves dozens
+    /// of identical labels, and reporting each as one thing gone and another
+    /// arrived buries the handful of real changes underneath.
+    Moved = 3,
 }
 
 #[derive(Clone, PartialEq, Debug)]
@@ -54,26 +61,43 @@ pub struct TextChange {
     pub rect: RectF,
 }
 
-/// How far a word may sit from its counterpart and still be the same word.
+/// How far a word may sit from an *identical* word and still be the same one.
 ///
-/// Two points. The largest displacement measured between producers is 0.985 pt,
-/// so this clears it comfortably while staying well under the spacing of
-/// anything on a schematic that a reader would consider separate.
-pub const SAME_WORD_PT: f32 = 2.0;
+/// Generous, because matching the text exactly is already strong evidence and
+/// the position only has to rule out a different instance of the same string.
+///
+/// Sized from measurement, and the first attempt at it was wrong: two points,
+/// taken from a single sheet where the largest displacement between producers
+/// was 0.985 pt. Across the rest of the set it reaches **5.4 pt** — the shift is
+/// systematic per sheet, with medians from 0.74 to 1.56 — and at two points most
+/// of a cover sheet came back as every word removed and the same word added.
+pub const SAME_WORD_PT: f32 = 6.0;
+
+/// How far a word may sit from a *different* word and still be taken as a
+/// change to it rather than one thing gone and another arrived.
+///
+/// Tight, and deliberately not the same number: this pass has no text to
+/// corroborate the position, so a generous radius here pairs a label with its
+/// unrelated neighbour and reports a change that did not happen. A value that
+/// genuinely changed stays where it was.
+pub const SAME_PLACE_PT: f32 = 2.0;
 
 /// Compares two sheets' words.
 ///
 /// Three passes, in order of how sure each is:
 ///
-/// 1. Same text in the same place — unchanged, and said no more about.
+/// 1. Same text near the same place — unchanged, and said no more about.
 /// 2. Of what is left, same place but different text — a change, reported with
 ///    both readings, which is the answer worth having.
-/// 3. Whatever remains is in one revision only.
+/// 3. Of what is still left, the same text elsewhere on the sheet has moved.
+/// 4. Whatever remains is in one revision only.
+///
+/// Passes 1 and 2 use different tolerances, for the reason given on each.
 ///
 /// Doing 1 before 2 matters: a sheet with the same net label repeated down a
 /// bus would otherwise pair the first occurrence with the wrong one and report
 /// two spurious changes.
-pub fn diff_words(before: &[Word], after: &[Word], tolerance: f32) -> Vec<TextChange> {
+pub fn diff_words(before: &[Word], after: &[Word]) -> Vec<TextChange> {
     let before = dedupe_stamps(before);
     let after = dedupe_stamps(after);
     let (before, after) = (&before[..], &after[..]);
@@ -82,7 +106,7 @@ pub fn diff_words(before: &[Word], after: &[Word], tolerance: f32) -> Vec<TextCh
 
     // 1. Identical text, nearest position.
     for (i, w) in before.iter().enumerate() {
-        if let Some(j) = nearest(after, &used_after, w, tolerance, Some(&w.text)) {
+        if let Some(j) = nearest(after, &used_after, w, SAME_WORD_PT, Some(&w.text)) {
             used_after[j] = true;
             matched_before[i] = true;
         }
@@ -95,7 +119,7 @@ pub fn diff_words(before: &[Word], after: &[Word], tolerance: f32) -> Vec<TextCh
         if matched_before[i] {
             continue;
         }
-        if let Some(j) = nearest(after, &used_after, w, tolerance, None) {
+        if let Some(j) = nearest(after, &used_after, w, SAME_PLACE_PT, None) {
             used_after[j] = true;
             matched_before[i] = true;
             out.push(TextChange {
@@ -107,7 +131,33 @@ pub fn diff_words(before: &[Word], after: &[Word], tolerance: f32) -> Vec<TextCh
         }
     }
 
-    // 3. Whatever is left belongs to one side only.
+    // 3. Of what is still unmatched, the same text somewhere else on the sheet
+    // has moved rather than been replaced.
+    for (i, w) in before.iter().enumerate() {
+        if matched_before[i] {
+            continue;
+        }
+        let Some(j) = after
+            .iter()
+            .enumerate()
+            .find(|(j, o)| !used_after[*j] && o.text == w.text)
+            .map(|(j, _)| j)
+        else {
+            continue;
+        };
+        used_after[j] = true;
+        matched_before[i] = true;
+        out.push(TextChange {
+            kind: TextChangeKind::Moved,
+            before: w.text.clone(),
+            after: w.text.clone(),
+            // Where it was. The reader is looking at the overlay, where this is
+            // the mark in the earlier revision's colour.
+            rect: w.rect,
+        });
+    }
+
+    // 4. Whatever is left belongs to one side only.
     for (i, w) in before.iter().enumerate() {
         if !matched_before[i] {
             out.push(TextChange {

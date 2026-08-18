@@ -26,6 +26,7 @@ class MainWindow : public QMainWindow {
   private slots:
     void chooseAndOpen();
     void reopenLast();
+    void exportReport();
     void onCurrentPageChanged(int page);
     void onRegionSelected(int page, const QRectF &r);
     void scanEverySheet();

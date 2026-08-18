@@ -6,6 +6,7 @@
 
 #include <QApplication>
 #include <QDockWidget>
+#include <QFile>
 #include <QFileDialog>
 #include <QFileInfo>
 #include <QLabel>
@@ -80,6 +81,10 @@ void MainWindow::buildMenus() {
     QAction *reopen = file->addAction(tr("&Reopen Last Comparison"), this,
                                       &MainWindow::reopenLast);
     reopen->setObjectName(QStringLiteral("reopenLast"));
+    file->addSeparator();
+    QAction *rep = file->addAction(tr("&Export Change Report…"), this,
+                                   &MainWindow::exportReport);
+    rep->setObjectName(QStringLiteral("exportReport"));
     file->addSeparator();
     QAction *quit = file->addAction(tr("&Quit"), qApp, &QApplication::quit);
     quit->setShortcut(QKeySequence::Quit);
@@ -202,6 +207,47 @@ void MainWindow::reopenLast() {
     openPair(a, b);
 }
 
+void MainWindow::exportReport() {
+    if (!m_session) {
+        return;
+    }
+    const ScSweepStatus st = m_session->sweepStatus();
+    if (!st.finished) {
+        // Offered rather than refused: a report of the first few sheets is
+        // sometimes exactly what somebody wants, and it says so in its own text.
+        const auto go = QMessageBox::question(
+            this, tr("The scan has not finished"),
+            tr("Only %1 of %2 sheets have been scanned. A report written now "
+               "covers those and says so.\n\nWrite it anyway?")
+                .arg(st.scanned)
+                .arg(st.total),
+            QMessageBox::Yes | QMessageBox::No, QMessageBox::No);
+        if (go != QMessageBox::Yes) {
+            return;
+        }
+    }
+    const QString suggested =
+        QFileInfo(m_session->pathB()).completeBaseName() + QStringLiteral(" changes.md");
+    const QString path = QFileDialog::getSaveFileName(
+        this, tr("Write the change report"),
+        QFileInfo(m_session->pathA()).absolutePath() + QLatin1Char('/') + suggested,
+        tr("Markdown (*.md);;All files (*)"));
+    if (path.isEmpty()) {
+        return;
+    }
+    QFile f(path);
+    if (!f.open(QIODevice::WriteOnly | QIODevice::Text)) {
+        QMessageBox::warning(this, tr("Cannot write the report"), f.errorString());
+        return;
+    }
+    const QByteArray text = m_session->report().toUtf8();
+    if (f.write(text) != text.size() || !f.flush()) {
+        QMessageBox::warning(this, tr("Cannot write the report"), f.errorString());
+        return;
+    }
+    statusBar()->showMessage(tr("Report written to %1").arg(path), 5000);
+}
+
 void MainWindow::closeEvent(QCloseEvent *e) {
     persist();
     QMainWindow::closeEvent(e);
@@ -311,6 +357,10 @@ void MainWindow::rebuildTextChanges(int page) {
         case SC_TEXT_CHANGE_KIND_REMOVED:
             item->setText(0, c.before);
             item->setText(1, tr("— removed"));
+            break;
+        case SC_TEXT_CHANGE_KIND_MOVED:
+            item->setText(0, c.before);
+            item->setText(1, tr("— moved"));
             break;
         default:
             item->setText(0, tr("— added"));

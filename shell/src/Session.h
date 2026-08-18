@@ -93,6 +93,9 @@ class Session : public QObject {
     // What this sheet says differently. Complements the overlay: the overlay
     // finds a re-routed wire, this finds a value that went from 10k to 12k.
     QVector<TextChange> textChanges(int page);
+    // The comparison as a document. Built from what has been scanned; renders
+    // nothing, so it is safe to call from a menu.
+    QString report();
 
     // Starts scanning every sheet on a worker thread. Progress arrives as
     // signals, driven by the core's wakeup handle — there is no timer in this.

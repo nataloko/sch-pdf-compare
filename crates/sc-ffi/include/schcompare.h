@@ -53,6 +53,12 @@ enum ScTextChangeKind
      * In the same place on both, saying something different.
      */
     SC_TEXT_CHANGE_KIND_CHANGED = 2,
+    /**
+     * The same text, elsewhere on the sheet. Told apart from an addition and a
+     * removal because a re-laid-out sheet moves dozens of identical labels and
+     * reporting each twice buries the real changes.
+     */
+    SC_TEXT_CHANGE_KIND_MOVED = 3,
 };
 #ifndef __cplusplus
 #if __STDC_VERSION__ >= 202311L
@@ -513,6 +519,20 @@ ScStatus sc_session_save_settings(const ScSession *s);
  * `path_a` and `path_b` must be writable, or null if that side is not wanted.
  */
 bool sc_last_pair(const char **path_a, const char **path_b);
+
+/**
+ * The comparison as a document, in Markdown.
+ *
+ * Built from the sheets already scanned — it renders nothing, so a menu item
+ * wired to this does not appear to hang. A sweep that has not finished is
+ * reported honestly in the text rather than quietly producing a short answer.
+ *
+ * # Safety
+ * `s` must be null or a live session. **The string is borrowed and stays valid
+ * only until the next `sc_session_report` call on this session, or until it is
+ * freed.** Null on failure.
+ */
+const char *sc_session_report(ScSession *s);
 
 /**
  * Works out what the two revisions of this sheet say differently, and returns

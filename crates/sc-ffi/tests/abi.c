@@ -92,6 +92,7 @@ static void null_session_is_survivable(void) {
     ScTextChange tc;
     check(sc_session_text_changes(NULL, 1) < 0, "text_changes(NULL) fails");
     check(sc_session_text_change(NULL, 0, &tc) < 0, "text_change(NULL) fails");
+    check(sc_session_report(NULL) == NULL, "report(NULL) is null, not a crash");
     check(sc_session_load_settings(NULL) < 0, "load_settings(NULL) fails");
     check(sc_session_save_settings(NULL) < 0, "save_settings(NULL) fails");
     /* Null out-params are allowed here: a caller may want only one of the two. */

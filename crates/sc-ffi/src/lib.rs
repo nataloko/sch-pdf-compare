@@ -180,6 +180,8 @@ pub struct ScSession {
     /// asking it a question from half a sweep is a different question.
     swept: Vec<SheetChanges>,
     suggested: Vec<RectF>,
+    /// Backing for the string [`sc_session_report`] hands out.
+    report: CString,
 }
 
 /// Opens two revisions for comparison.
@@ -205,6 +207,7 @@ pub unsafe extern "C" fn sc_session_open(
             text_changes: Vec::new(),
             swept: Vec::new(),
             suggested: Vec::new(),
+            report: CString::default(),
         })),
         Err(e) => {
             fail(e);
@@ -860,6 +863,33 @@ pub unsafe extern "C" fn sc_last_pair(
     true
 }
 
+/// The comparison as a document, in Markdown.
+///
+/// Built from the sheets already scanned — it renders nothing, so a menu item
+/// wired to this does not appear to hang. A sweep that has not finished is
+/// reported honestly in the text rather than quietly producing a short answer.
+///
+/// # Safety
+/// `s` must be null or a live session. **The string is borrowed and stays valid
+/// only until the next `sc_session_report` call on this session, or until it is
+/// freed.** Null on failure.
+#[no_mangle]
+pub unsafe extern "C" fn sc_session_report(s: *mut ScSession) -> *const c_char {
+    let Some(s) = s.as_mut() else {
+        invalid("a live session is required");
+        return std::ptr::null();
+    };
+    // Whatever has been scanned, in sheet order. The sweep's own list is in the
+    // order it finished, which is the same thing today and need not stay so.
+    let mut scanned: Vec<SheetChanges> = (1..=s.inner.page_count())
+        .filter_map(|p| s.scans.get(&p).cloned())
+        .collect();
+    scanned.sort_by_key(|r| r.page_no);
+    let text = s.inner.report(&scanned);
+    s.report = CString::new(text.replace('\0', " ")).unwrap_or_default();
+    s.report.as_ptr()
+}
+
 /// Whether a piece of text was added, removed, or says something different.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 #[repr(u8)]
@@ -870,6 +900,10 @@ pub enum ScTextChangeKind {
     Removed = 1,
     /// In the same place on both, saying something different.
     Changed = 2,
+    /// The same text, elsewhere on the sheet. Told apart from an addition and a
+    /// removal because a re-laid-out sheet moves dozens of identical labels and
+    /// reporting each twice buries the real changes.
+    Moved = 3,
 }
 
 /// One difference in what the two revisions of a sheet say.
@@ -941,6 +975,7 @@ pub unsafe extern "C" fn sc_session_text_change(
                     TextChangeKind::Added => ScTextChangeKind::Added,
                     TextChangeKind::Removed => ScTextChangeKind::Removed,
                     TextChangeKind::Changed => ScTextChangeKind::Changed,
+                    TextChangeKind::Moved => ScTextChangeKind::Moved,
                 },
                 before: before.as_ptr(),
                 after: after.as_ptr(),

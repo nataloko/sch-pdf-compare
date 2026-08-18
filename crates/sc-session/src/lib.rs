@@ -11,6 +11,7 @@
 #![deny(unsafe_code)]
 
 mod matching;
+mod report;
 mod scan;
 mod settings;
 #[cfg(test)]

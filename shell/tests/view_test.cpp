@@ -17,6 +17,7 @@
 #include <QApplication>
 #include <QDir>
 #include <QFileInfo>
+#include <QFileInfo>
 #include <QLabel>
 #include <QTest>
 #include <QTreeWidget>
@@ -62,6 +63,15 @@ static QString sample(const QString &name) {
 }
 
 int main(int argc, char **argv) {
+    // Point the settings at a scratch directory before anything can read them,
+    // while this is still single-threaded. The real one belongs to whoever is
+    // running the tests and is not ours to write into.
+    const QString cfg = QDir::temp().filePath(QStringLiteral("sch-pdf-compare-viewtest"));
+    QDir(cfg).removeRecursively();
+    qputenv("XDG_CONFIG_HOME", cfg.toLocal8Bit());
+    const QString settingsFile =
+        cfg + QStringLiteral("/sch-pdf-compare/settings.json");
+
     QApplication app(argc, argv);
     for (int i = 1; i + 1 < argc; i++) {
         if (QString::fromLatin1(argv[i]) == QLatin1String("--write")) {
@@ -202,6 +212,45 @@ int main(int argc, char **argv) {
     }
     check(renamed, QStringLiteral("and it spells out the net rename"));
     shot(&win, QStringLiteral("text-changes"));
+
+    // `--for-testing` must not have written anything, whatever else happened
+    // above — and plenty above excluded regions and changed the tolerance.
+    check(!QFileInfo::exists(settingsFile),
+          QStringLiteral("--for-testing wrote no settings"));
+
+    // And a normal run must. Excluded regions are the reason any of this
+    // exists: working out where a set's title block is costs a reviewer a
+    // minute, and losing it every session makes the feature not worth using.
+    {
+        MainWindow real;
+        real.resize(900, 700);
+        real.show();
+        check(real.openPair(a, b), QStringLiteral("a normal run opens the pair"));
+        Session *rs = real.findChild<CompareView *>()->session();
+        const QRectF block(600.0, 570.0, 200.0, 25.0);
+        rs->addIgnoreRect(block);
+        QTest::qWait(50);
+        real.close();
+        QTest::qWait(50);
+        check(QFileInfo::exists(settingsFile), QStringLiteral("a normal run saves them"));
+    }
+    {
+        MainWindow again;
+        again.resize(900, 700);
+        again.show();
+        check(again.openPair(a, b), QStringLiteral("and reopening the pair"));
+        Session *rs = again.findChild<CompareView *>()->session();
+        check(rs->ignoreRects().size() == 1,
+              QStringLiteral("brings the excluded region back, got %1")
+                  .arg(rs->ignoreRects().size()));
+
+        QString la;
+        QString lb;
+        check(Session::lastPair(&la, &lb) && la == a && lb == b,
+              QStringLiteral("and the pair itself is remembered for reopening"));
+        again.close();
+    }
+    QDir(cfg).removeRecursively();
 
     if (failures == 0) {
         printf("view: ok\n");

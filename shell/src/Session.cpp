@@ -230,6 +230,30 @@ bool Session::pairingIsAutomatic() const {
     return sc_session_pairing_is_automatic(m_s);
 }
 
+void Session::loadSettings() {
+    sc_session_load_settings(m_s);
+    emit invalidated();
+}
+
+bool Session::saveSettings() {
+    return sc_session_save_settings(m_s) == SC_OK;
+}
+
+bool Session::lastPair(QString *a, QString *b) {
+    const char *pa = nullptr;
+    const char *pb = nullptr;
+    if (!sc_last_pair(&pa, &pb)) {
+        return false;
+    }
+    if (a) {
+        *a = QString::fromUtf8(pa);
+    }
+    if (b) {
+        *b = QString::fromUtf8(pb);
+    }
+    return true;
+}
+
 QVector<QRectF> Session::ignoreRects() const {
     QVector<QRectF> out;
     const size_t n = sc_session_ignore_rect_count(m_s);

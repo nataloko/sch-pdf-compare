@@ -18,7 +18,7 @@ use std::ffi::{c_char, CStr, CString};
 
 use sc_diff::{RectF, TextChange, TextChangeKind, ViewMode};
 use sc_render::Tile as RenderTile;
-use sc_session::{suggest_ignores, Session, SheetChanges, Sweep};
+use sc_session::{suggest_ignores, Session, Settings, SheetChanges, Sweep};
 
 /// 0 is success. Every failure is negative, so `if (status < 0)` is the whole
 /// check a caller needs.
@@ -771,6 +771,93 @@ pub unsafe extern "C" fn sc_session_suggested(
         }
         None => invalid("no suggested region with that index"),
     }
+}
+
+/// Loads this pair's saved state: the excluded regions worked out for it last
+/// time, and the tolerance and colours in force.
+///
+/// The frontend chooses whether to call this. A run started `-for-testing`
+/// simply does not, which is how persistence is exercised without it.
+///
+/// # Safety
+/// `s` must be null or a live session.
+#[no_mangle]
+pub unsafe extern "C" fn sc_session_load_settings(s: *mut ScSession) -> ScStatus {
+    let Some(s) = s.as_mut() else {
+        return invalid("a live session is required");
+    };
+    let saved = Settings::load();
+    s.inner.set_options(saved.options());
+    s.inner.clear_ignore_rects();
+    let (a, b) = (s.inner.path_a().to_owned(), s.inner.path_b().to_owned());
+    for r in saved.ignore_rects(&a, &b) {
+        s.inner.add_ignore_rect(r);
+    }
+    s.reset_scans();
+    SC_OK
+}
+
+/// Saves this pair's excluded regions, and the tolerance and colours, for next
+/// time.
+///
+/// The file is re-read first, so a second window comparing a different pair does
+/// not lose what it saved.
+///
+/// # Safety
+/// `s` must be null or a live session.
+#[no_mangle]
+pub unsafe extern "C" fn sc_session_save_settings(s: *const ScSession) -> ScStatus {
+    let Some(s) = s.as_ref() else {
+        return invalid("a live session is required");
+    };
+    let mut saved = Settings::load();
+    saved.set_options(s.inner.options());
+    saved.set_ignore_rects(s.inner.path_a(), s.inner.path_b(), s.inner.ignore_rects());
+    match saved.save() {
+        Ok(()) => SC_OK,
+        Err(e) => {
+            set_error(format_args!("cannot save settings: {e}"));
+            SC_ERR_IO
+        }
+    }
+}
+
+thread_local! {
+    /// Backing for [`sc_last_pair`]'s two borrowed strings.
+    static LAST_PAIR: RefCell<(CString, CString)> =
+        RefCell::new((CString::default(), CString::default()));
+}
+
+/// The pair compared most recently, for offering to reopen it.
+///
+/// False when there is none. The strings are borrowed and valid until the next
+/// call to this function on the same thread.
+///
+/// # Safety
+/// `path_a` and `path_b` must be writable, or null if that side is not wanted.
+#[no_mangle]
+pub unsafe extern "C" fn sc_last_pair(
+    path_a: *mut *const c_char,
+    path_b: *mut *const c_char,
+) -> bool {
+    let saved = Settings::load();
+    let Some((a, b)) = saved.last_pair() else {
+        return false;
+    };
+    LAST_PAIR.with(|slot| {
+        let mut slot = slot.borrow_mut();
+        *slot = (
+            CString::new(a).unwrap_or_default(),
+            CString::new(b).unwrap_or_default(),
+        );
+        if !path_a.is_null() {
+            *path_a = slot.0.as_ptr();
+        }
+        if !path_b.is_null() {
+            *path_b = slot.1.as_ptr();
+        }
+    });
+    true
 }
 
 /// Whether a piece of text was added, removed, or says something different.

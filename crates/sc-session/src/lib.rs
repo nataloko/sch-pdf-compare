@@ -12,6 +12,9 @@
 
 mod matching;
 mod scan;
+mod settings;
+#[cfg(test)]
+mod settings_tests;
 mod sweep;
 mod textdiff;
 mod tile;
@@ -19,6 +22,7 @@ mod tile;
 mod wakeup;
 
 pub use scan::{SheetChanges, SCAN_DPI};
+pub use settings::Settings;
 pub use sweep::{suggest_ignores, Sweep, SweepStatus};
 pub use wakeup::WakeupHandle;
 

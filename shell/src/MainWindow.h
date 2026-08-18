@@ -25,6 +25,7 @@ class MainWindow : public QMainWindow {
 
   private slots:
     void chooseAndOpen();
+    void reopenLast();
     void onCurrentPageChanged(int page);
     void onRegionSelected(int page, const QRectF &r);
     void scanEverySheet();
@@ -43,8 +44,12 @@ class MainWindow : public QMainWindow {
     void matchSheets();
     void nudgeTolerance(int by);
 
+  protected:
+    void closeEvent(QCloseEvent *e) override;
+
   private:
     void buildMenus();
+    void persist();
     void updateStatus();
     void rebuildSheetList();
     void rebuildTextChanges(int page);

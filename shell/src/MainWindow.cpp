@@ -9,6 +9,7 @@
 #include <QFileDialog>
 #include <QFileInfo>
 #include <QLabel>
+#include <QCloseEvent>
 #include <QMenuBar>
 #include <QMessageBox>
 #include <QStatusBar>
@@ -76,6 +77,9 @@ void MainWindow::buildMenus() {
     QAction *open = file->addAction(tr("&Compare Two Files…"), this, &MainWindow::chooseAndOpen);
     open->setObjectName(QStringLiteral("open"));
     open->setShortcut(QKeySequence::Open);
+    QAction *reopen = file->addAction(tr("&Reopen Last Comparison"), this,
+                                      &MainWindow::reopenLast);
+    reopen->setObjectName(QStringLiteral("reopenLast"));
     file->addSeparator();
     QAction *quit = file->addAction(tr("&Quit"), qApp, &QApplication::quit);
     quit->setShortcut(QKeySequence::Quit);
@@ -146,6 +150,7 @@ void MainWindow::buildMenus() {
     QAction *clr = cmp->addAction(tr("&Clear Excluded Regions"), this, [this] {
         if (m_session) {
             m_session->clearIgnoreRects();
+            persist();
         }
     });
     clr->setObjectName(QStringLiteral("clearRegions"));
@@ -170,6 +175,11 @@ bool MainWindow::openPair(const QString &pathA, const QString &pathB) {
     m_view->setSession(m_session);
     setWindowTitle(tr("%1 vs %2 — sch-pdf-compare")
                        .arg(QFileInfo(pathA).fileName(), QFileInfo(pathB).fileName()));
+    if (!m_forTesting) {
+        // Whatever was worked out for this pair last time, before anything is
+        // scanned against the wrong settings.
+        m_session->loadSettings();
+    }
     m_atSheet = 0;
     m_atIndex = -1;
     m_acceptSuggestions->setEnabled(false);
@@ -179,6 +189,32 @@ bool MainWindow::openPair(const QString &pathA, const QString &pathB) {
     // sheets changed. Start finding out immediately.
     m_session->startSweep();
     return true;
+}
+
+void MainWindow::reopenLast() {
+    QString a;
+    QString b;
+    if (!Session::lastPair(&a, &b)) {
+        QMessageBox::information(this, tr("Nothing to reopen"),
+                                 tr("No comparison has been saved yet."));
+        return;
+    }
+    openPair(a, b);
+}
+
+void MainWindow::closeEvent(QCloseEvent *e) {
+    persist();
+    QMainWindow::closeEvent(e);
+}
+
+/// Writes the excluded regions and settings back, unless this run was told not
+/// to. Called after anything worth keeping, and again on the way out, because a
+/// reviewer who worked out a title block and then lost the window should not
+/// have to do it twice.
+void MainWindow::persist() {
+    if (m_session && !m_forTesting) {
+        m_session->saveSettings();
+    }
 }
 
 void MainWindow::chooseAndOpen() {
@@ -247,6 +283,7 @@ void MainWindow::matchSheets() {
 void MainWindow::nudgeTolerance(int by) {
     if (m_session) {
         m_session->setTolerance(m_session->tolerance() + by);
+        persist();
     }
 }
 
@@ -292,6 +329,7 @@ void MainWindow::onRegionSelected(int page, const QRectF &r) {
     // Excluded regions apply to every sheet, which is what a shared title block
     // needs — and why the sheet the rectangle was drawn on does not matter.
     m_session->addIgnoreRect(r);
+    persist();
 }
 
 void MainWindow::scanEverySheet() {
@@ -344,6 +382,7 @@ void MainWindow::applySuggestions() {
     for (const QRectF &r : offered) {
         m_session->addIgnoreRect(r);
     }
+    persist();
     // The exclusions changed every answer, so the sweep starts again.
     m_session->startSweep();
 }

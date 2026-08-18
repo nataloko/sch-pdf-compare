@@ -477,6 +477,8 @@ dependencies = [
  "sc-diff",
  "sc-match",
  "sc-render",
+ "serde",
+ "serde_json",
  "windows-sys",
 ]
 

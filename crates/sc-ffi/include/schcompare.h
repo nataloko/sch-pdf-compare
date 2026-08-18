@@ -480,6 +480,41 @@ int32_t sc_session_suggested_count(const ScSession *s);
 ScStatus sc_session_suggested(const ScSession *s, size_t index, ScRectF *out);
 
 /**
+ * Loads this pair's saved state: the excluded regions worked out for it last
+ * time, and the tolerance and colours in force.
+ *
+ * The frontend chooses whether to call this. A run started `-for-testing`
+ * simply does not, which is how persistence is exercised without it.
+ *
+ * # Safety
+ * `s` must be null or a live session.
+ */
+ScStatus sc_session_load_settings(ScSession *s);
+
+/**
+ * Saves this pair's excluded regions, and the tolerance and colours, for next
+ * time.
+ *
+ * The file is re-read first, so a second window comparing a different pair does
+ * not lose what it saved.
+ *
+ * # Safety
+ * `s` must be null or a live session.
+ */
+ScStatus sc_session_save_settings(const ScSession *s);
+
+/**
+ * The pair compared most recently, for offering to reopen it.
+ *
+ * False when there is none. The strings are borrowed and valid until the next
+ * call to this function on the same thread.
+ *
+ * # Safety
+ * `path_a` and `path_b` must be writable, or null if that side is not wanted.
+ */
+bool sc_last_pair(const char **path_a, const char **path_b);
+
+/**
  * Works out what the two revisions of this sheet say differently, and returns
  * how many differences there are.
  *

@@ -7,6 +7,10 @@ repository.workspace = true
 
 [dependencies]
 sc-diff.workspace = true
+# The settings file. Small and hand-writable on purpose — a reviewer who wants
+# to copy one document pair's excluded regions to another should be able to.
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
 sc-match.workspace = true
 sc-render.workspace = true
 

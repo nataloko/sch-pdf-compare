@@ -64,6 +64,13 @@ class Session : public QObject {
     bool autoMatch();
     bool pairingIsAutomatic() const;
 
+    // Reads back what was worked out for this pair last time, and stores it.
+    // The caller decides whether to: a run started --for-testing does neither.
+    void loadSettings();
+    bool saveSettings();
+    // The pair compared most recently, or false if there is none.
+    static bool lastPair(QString *a, QString *b);
+
     QVector<QRectF> ignoreRects() const;
     void addIgnoreRect(const QRectF &r);
     void clearIgnoreRects();

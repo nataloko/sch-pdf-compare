@@ -40,13 +40,21 @@ class CompareView : public QAbstractScrollArea {
     // is drawn twice on top of itself and neither reading is legible.
     enum class Layout { Single, SideBySide };
 
-    // How much of the set the scroll runs through.
+    // Whether the viewport scrolls through the set at all.
     //
-    // `Continuous` lays every sheet out in one column, which is right for
-    // reading a set the way it was drawn. `SinglePage` lays out only the sheet
-    // being read and stops there: the scroll cannot wander onto the next sheet,
-    // `PageDown` from the bottom is a deliberate step to it, and a fit to the
-    // page actually means the page.
+    // `Continuous` lays every sheet out in one column and scrolls through them,
+    // which is right for reading a set the way it was drawn.
+    //
+    // `SinglePage` shows **one whole sheet and nothing else**: the sheet being
+    // read, fitted to the viewport, with no scrolling anywhere. `PageUp`,
+    // `PageDown` and the wheel step from sheet to sheet, `Home` and `End` go to
+    // the ends of the set. It is the view for flipping through a set looking
+    // for the sheet that changed, where scrolling is the thing in the way.
+    //
+    // Because "the whole sheet is on screen" is the entire definition, asking
+    // for a closer look leaves it: any zoom, and any fit other than to the
+    // page, puts the viewport back into the continuous scroll rather than
+    // quietly becoming a single sheet you have to scroll around.
     //
     // Orthogonal to `Layout` and to the view mode. A reader can be on one sheet
     // at a time, side by side, at whichever tolerance — these are three
@@ -84,6 +92,9 @@ class CompareView : public QAbstractScrollArea {
 
   signals:
     void currentPageChanged(int page);
+    // The viewport left, or entered, the one-sheet flow. Emitted because it can
+    // leave on its own: a zoom is a request the flow cannot honour.
+    void flowChanged(bool singlePage);
     // Whether the next drag marks a region to exclude. The window says so.
     void regionArmedChanged(bool armed);
     // The reader dragged out a rectangle with Ctrl held.
@@ -114,6 +125,8 @@ class CompareView : public QAbstractScrollArea {
 
     void relayout();
     void applyFit();
+    // Moves by whole sheets, for the keys and the wheel in the one-sheet flow.
+    void stepSheet(int by);
     QPoint contentOrigin() const;
     const QImage &tileAt(int page, const QRect &tile, ScViewMode mode);
     // Content coordinates -> (page, point in page space)
@@ -147,4 +160,9 @@ class CompareView : public QAbstractScrollArea {
     bool m_armed = false;
     QPoint m_dragStart;
     QPoint m_dragNow;
+
+    // Wheel notches not yet spent on a sheet. A free-spinning wheel and a
+    // touchpad both send fractions of a notch, and a sheet per fraction sends
+    // an 85-sheet set past in a flick.
+    int m_wheelSpin = 0;
 };

@@ -35,6 +35,7 @@
 #include <QSlider>
 #include <QSpinBox>
 #include <QToolBar>
+#include <QWheelEvent>
 #include <QTreeWidget>
 
 static int failures = 0;
@@ -614,15 +615,14 @@ int main(int argc, char **argv) {
               QStringLiteral("and the warning goes with it: '%1'").arg(status->text()));
     }
 
-    // One sheet at a time. A set is read sheet by sheet as often as it is
-    // scrolled through, and a scroll that runs on to the next sheet mid-way
-    // through this one is exactly the wrong thing then.
+    // One sheet at a time: the whole sheet on screen and nothing to scroll.
+    // A set is flipped through as often as it is read, and scrolling is the
+    // thing in the way when you are looking for the sheet that changed.
     {
         auto *one = win.findChild<QAction *>(QStringLiteral("singlePage"));
         check(one != nullptr, QStringLiteral("there is a single-page action"));
         view->goToPage(3);
         QTest::qWait(50);
-        const int spanAll = view->verticalScrollBar()->maximum();
         one->setChecked(true);
         QTest::qWait(50);
         check(view->flow() == CompareView::Flow::SinglePage,
@@ -632,35 +632,90 @@ int main(int argc, char **argv) {
                   .arg(view->currentPage()));
         check(status->text().contains(QStringLiteral("one sheet")),
               QStringLiteral("and says so: '%1'").arg(status->text()));
-        // The proof that the others are not merely off screen: the scroll ends
-        // at the foot of this sheet.
-        check(view->verticalScrollBar()->maximum() < spanAll,
-              QStringLiteral("the scroll covers one sheet, %1 of %2")
-                  .arg(view->verticalScrollBar()->maximum())
-                  .arg(spanAll));
-        view->verticalScrollBar()->setValue(view->verticalScrollBar()->maximum());
-        QTest::qWait(20);
-        check(view->currentPage() == 3,
-              QStringLiteral("scrolling to the bottom cannot wander on to sheet %1")
-                  .arg(view->currentPage()));
+
+        // The two halves of what this view is. Nothing scrolls...
+        check(view->verticalScrollBar()->maximum() == 0 &&
+                  view->horizontalScrollBar()->maximum() == 0,
+              QStringLiteral("there is nothing to scroll, %1 x %2")
+                  .arg(view->horizontalScrollBar()->maximum())
+                  .arg(view->verticalScrollBar()->maximum()));
+        // ...because the whole sheet is on screen. Measured against the
+        // viewport rather than taken from the fit: a fit that stopped fitting
+        // is exactly the failure this would have to catch.
+        auto sheetFits = [&] {
+            const QSize sheet = view->session()->pageDeviceSize(view->currentPage(), view->zoom());
+            const QSize vp = view->viewport()->size();
+            return sheet.width() <= vp.width() && sheet.height() <= vp.height();
+        };
+        check(sheetFits(), QStringLiteral("the whole sheet is on screen"));
         shot(&win, QStringLiteral("single-page"));
 
-        // From the foot of the sheet, PageDown is a deliberate step to the next.
+        // Stepping through the set, by every route a hand takes.
         QTest::keyClick(view, Qt::Key_PageDown);
         QTest::qWait(50);
         check(view->currentPage() == 4,
-              QStringLiteral("PageDown from the bottom steps a sheet, got %1")
-                  .arg(view->currentPage()));
-        check(view->verticalScrollBar()->value() == 0,
-              QStringLiteral("landing at its top"));
+              QStringLiteral("PageDown steps a sheet, got %1").arg(view->currentPage()));
+        check(sheetFits(), QStringLiteral("and it is whole too"));
         QTest::keyClick(view, Qt::Key_PageUp);
         QTest::qWait(50);
-        check(view->currentPage() == 3, QStringLiteral("and PageUp comes back"));
+        check(view->currentPage() == 3, QStringLiteral("PageUp comes back"));
+        QTest::keyClick(view, Qt::Key_End);
+        QTest::qWait(50);
+        check(view->currentPage() == view->session()->pageCount(),
+              QStringLiteral("End goes to the last sheet, got %1").arg(view->currentPage()));
+        QTest::keyClick(view, Qt::Key_Home);
+        QTest::qWait(50);
+        check(view->currentPage() == 1, QStringLiteral("and Home to the first"));
+
+        // The wheel has nothing to scroll, so it turns sheets. One notch, one
+        // sheet — a touchpad sends fractions of a notch and would otherwise
+        // send a whole set past in a flick.
+        auto spin = [&](int notches) {
+            QWheelEvent w(QPointF(200, 200), view->viewport()->mapToGlobal(QPoint(200, 200)),
+                          QPoint(0, 0), QPoint(0, notches * 120), Qt::NoButton, Qt::NoModifier,
+                          Qt::NoScrollPhase, false);
+            QApplication::sendEvent(view->viewport(), &w);
+            QTest::qWait(30);
+        };
+        spin(-1);
+        check(view->currentPage() == 2,
+              QStringLiteral("a notch down turns to the next sheet, got %1")
+                  .arg(view->currentPage()));
+        spin(1);
+        check(view->currentPage() == 1, QStringLiteral("and back up again"));
+
+        // A zoom is a request this view cannot honour, so it leaves — visibly,
+        // with the button unchecking itself. The alternative is a single sheet
+        // that has to be scrolled around, which is what it exists to remove.
+        view->setZoom(view->zoom() * 2.0);
+        QTest::qWait(50);
+        check(view->flow() == CompareView::Flow::Continuous,
+              QStringLiteral("zooming in leaves the one-sheet view"));
+        check(!one->isChecked(), QStringLiteral("and the button says so"));
+
+        // One sheet at a time and side by side are different questions, so
+        // asking one must not answer the other.
+        one->setChecked(true);
+        QTest::qWait(50);
+        win.findChild<QAction *>(QStringLiteral("sideBySide"))->setChecked(true);
+        QTest::qWait(50);
+        check(view->flow() == CompareView::Flow::SinglePage && one->isChecked(),
+              QStringLiteral("side by side leaves the single sheet alone"));
+        check(view->layout() == CompareView::Layout::SideBySide,
+              QStringLiteral("and both are in force at once"));
+        check(view->verticalScrollBar()->maximum() == 0,
+              QStringLiteral("with both sheets whole and still nothing to scroll"));
+        shot(&win, QStringLiteral("single-page-side-by-side"));
 
         // Stepping through the changes has to cross sheets, and the sheet it is
         // going to is not laid out yet. This shipped broken once for the same
         // reason in another guise: the answer was found and there was nowhere
         // on screen to point at it.
+        win.findChild<QAction *>(QStringLiteral("overlay"))->trigger();
+        QTest::qWait(50);
+        one->setChecked(true);
+        view->goToPage(1);
+        QTest::qWait(50);
         const int wasOn = view->currentPage();
         auto *step = win.findChild<QAction *>(QStringLiteral("next"));
         for (int i = 0; i < 40 && view->currentPage() == wasOn; i++) {
@@ -669,26 +724,15 @@ int main(int argc, char **argv) {
         }
         check(view->currentPage() != wasOn,
               QStringLiteral("stepping to a change on another sheet brings that sheet up"));
-        check(view->currentPage() == view->session()->pageCount() ||
-                  status->text().contains(QStringLiteral("at change")),
-              QStringLiteral("and lands on the change: '%1'").arg(status->text()));
-
-        // One sheet at a time and side by side are different questions, so
-        // asking one must not answer the other.
-        win.findChild<QAction *>(QStringLiteral("sideBySide"))->setChecked(true);
-        QTest::qWait(50);
-        check(view->flow() == CompareView::Flow::SinglePage && one->isChecked(),
-              QStringLiteral("side by side leaves the single sheet alone"));
-        check(view->layout() == CompareView::Layout::SideBySide,
-              QStringLiteral("and both are in force at once"));
-        shot(&win, QStringLiteral("single-page-side-by-side"));
+        check(view->flow() == CompareView::Flow::SinglePage,
+              QStringLiteral("without leaving the view, since the zoom never moved"));
 
         one->setChecked(false);
         QTest::qWait(50);
         check(view->flow() == CompareView::Flow::Continuous,
               QStringLiteral("and the scroll runs through the set again"));
-        win.findChild<QAction *>(QStringLiteral("overlay"))->trigger();
-        QTest::qWait(50);
+        check(view->verticalScrollBar()->maximum() > 0,
+              QStringLiteral("with the scrollbar back"));
     }
 
     // Printing, checked by printing to a PDF and reading back what came out.

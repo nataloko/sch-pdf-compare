@@ -213,6 +213,14 @@ void MainWindow::buildMenus() {
         m_view->setFlow(on ? CompareView::Flow::SinglePage : CompareView::Flow::Continuous);
         updateStatus();
     });
+    // The viewport can leave this flow without being asked: showing the whole
+    // sheet is what the flow *is*, so a zoom cannot be honoured inside it. The
+    // button has to say so, or it claims a view the window is not in.
+    connect(m_view, &CompareView::flowChanged, this, [this](bool one) {
+        const QSignalBlocker block(m_singlePageAct);
+        m_singlePageAct->setChecked(one);
+        updateStatus();
+    });
     view->addSeparator();
     QAction *fw = view->addAction(tr("Fit &Width"), this,
                                   [this] { m_view->setFit(CompareView::Fit::Width); });

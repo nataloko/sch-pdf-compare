@@ -64,10 +64,12 @@ customer material. The `samples/` directory stays out of the repository.
 - **A side-by-side view** with the `4` key. The two revisions have one zoom and
   one position. This helps you where the overlay puts two different texts on top
   of each other.
-- **A view of one sheet.** The `5` key shows one sheet only. The view then stops
-  at the bottom of the sheet. `PageDown` and `PageUp` move to the next sheet and
-  to the previous sheet. This view operates with the overlay, with one revision,
-  and with the side-by-side view.
+- **A view of one full sheet.** The `5` key shows one sheet at the size of the
+  window. There is no scroll. The mouse wheel, `PageUp` and `PageDown` move to
+  the previous sheet and to the next sheet. `Home` and `End` go to the first
+  sheet and to the last sheet. A zoom operation stops this view, because the
+  sheet is then larger than the window. This view operates with the overlay,
+  with one revision, and with the side-by-side view.
 - **A print function** in the same orientation as the drawing. Each page gives
   the two file names, the view, the tolerance, and the regions that the software
   did not compare.

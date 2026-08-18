@@ -555,17 +555,30 @@ opening that file — so the control is switched off in every other view rather
 than left live and inert, which is what "clicking Only A does nothing" turned
 out to mean.
 
-**One sheet at a time is a flow, not a view mode.** A/B/overlay/side-by-side are
-one exclusive choice because they answer "what am I looking at". How much of the
-set the scroll runs through is a different question, and a reader wants one sheet
-of the overlay as readily as one sheet side by side. Putting it in that group
-would make choosing a single sheet switch the overlay off, which is the trap the
-group was made to close. In `SinglePage` the other sheets are not laid out at
-all, so nothing can scroll onto them and a fit to the page is a fit to *this*
-page; `PageDown` at the foot of the sheet is a deliberate step to the next one.
-It broke `showRect` on the way in — stepping to a change crosses sheets, and the
-sheet it was pointing at had not been laid out — which is the same class of bug
-as the layout that never rebuilt, and is tested the same way.
+**One sheet at a time means one whole sheet and no scrolling.** It was built
+first as "the scroll stops at the foot of this sheet", which is what most
+document readers do and is not what was asked for or what the view is worth
+having for: a set is flipped through to find the sheet that changed, and
+scrolling is the thing in the way. The sheet is fitted to the viewport, both
+scrollbars are taken away rather than left at an empty range, and `PageUp`,
+`PageDown`, the arrow keys, `Home`, `End` and the wheel all move by whole
+sheets. Wheel notches are accumulated to 120 before one counts, or a touchpad
+sends an 85-sheet set past in a flick.
+
+Because "the whole sheet is on screen" is the entire definition, **a zoom leaves
+the flow** — visibly, with the button unchecking itself — rather than quietly
+turning it into a single sheet that has to be scrolled around. Fitting the width
+leaves it too: a portrait sheet fitted to the width of a wide window is taller
+than the viewport, which is scrolling by another name.
+
+It is a flow, not a view mode. A/B/overlay/side-by-side are one exclusive choice
+because they answer "what am I looking at"; whether the viewport scrolls through
+the set is a different question, and a reader wants one sheet of the overlay as
+readily as one sheet side by side. Putting it in that group would make choosing a
+single sheet switch the overlay off, which is the trap the group was made to
+close. It broke `showRect` on the way in — stepping to a change crosses sheets,
+and the sheet it was pointing at had not been laid out — which is the same class
+of bug as the layout that never rebuilt, and is tested the same way.
 
 **The toolbar has pictures now**, and the reason it did not is answered rather
 than forgotten. It said: there is no icon set that says "only the earlier

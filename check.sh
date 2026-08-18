@@ -81,7 +81,12 @@ if [ -d "$root/samples" ]; then
         | grep -viE '^(pdf|rev[a-z]?[0-9]*)$' | sort -u)
     leaked=""
     for w in $words; do
-        if git -C "$root" grep -qiF -- "$w" 2>/dev/null; then
+        # -I: text only. One sample's filename contains an ordinary English
+        # word, which matched a dependency's compiled doc comments and failed
+        # this check for nothing. (Naming that word here would fail the check
+        # too, which is the point of taking the words from `samples/`.) A name
+        # that leaks, leaks in text; a picture is the other guard's job.
+        if git -C "$root" grep -qIiF -- "$w" 2>/dev/null; then
             leaked="$leaked $w"
         fi
     done
@@ -89,7 +94,7 @@ if [ -d "$root/samples" ]; then
         printf '  FAIL  no customer names tracked\n'
         for w in $leaked; do
             printf '        %s appears in: %s\n' "$w" \
-                "$(git -C "$root" grep -liF -- "$w" | tr '\n' ' ')"
+                "$(git -C "$root" grep -lIiF -- "$w" | tr '\n' ' ')"
         done
         failed=1
     else

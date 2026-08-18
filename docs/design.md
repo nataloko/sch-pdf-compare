@@ -377,6 +377,28 @@ tolerance, and — most of all — whether regions were excluded from the
 comparison: a printout gets passed around without the application that made it,
 and "part of this was not compared" has to travel with it.
 
+## What a reader can reach
+
+Two things were settled in the core long before they were reachable from the
+window, and both had to be fixed rather than explained.
+
+The **overlay colours** were configurable, persisted and honoured, and could be
+changed only by editing the settings file. The default pair is red and green.
+Every piece of information this tool produces is carried by those two colours, so
+a reader with red-green colour blindness could not use it at all. There is now a
+dialog with a blue-and-orange preset, which stays distinct under every common
+form of it.
+
+The **changed-sheet list** showed a count and nothing else, after the count had
+already been shown to be unable to separate a few edits from a redrawn sheet. It
+now carries the coverage next to the count, and a sheet whose two revisions are
+different sizes on paper says so instead of showing a figure that means nothing.
+
+The **text panel** listed moved text alongside real changes, which is what the
+report had already stopped doing — one sample sheet has 354 moves against 10
+changes. Moves are now counted on a control rather than listed, and the count is
+on show, so nothing is hidden without saying so.
+
 ## Windows
 
 The core cross-compiles to `x86_64-pc-windows-gnu` with the MinGW toolchain, and
@@ -415,9 +437,9 @@ default, but the design does not punish getting it wrong.
 Ranked for the schematic-review workflow.
 
 1. **Windows packaging.** The core cross-builds and passes its harness under
-   Wine. What is left is building the shell — on Windows with the official Qt,
-   or cross-built from a distribution with a MinGW Qt — and then an installer.
-   Neither has been run; this machine has neither.
+   Wine. The shell has never been built on Windows here, and CI now attempts it
+   on a Windows runner with the official Qt — until that job has been seen green,
+   "the CMake handles it" is still an assertion. After that, an installer.
 2. **Estimate the transform between two sheets** — one item, not two. Alignment
    and scaling are the same question, and a single estimator covers both and is
    the identity when nothing needs correcting. It has to be estimated from the

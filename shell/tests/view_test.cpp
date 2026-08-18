@@ -224,8 +224,9 @@ int main(int argc, char **argv) {
     check(drawnB != drawnOverlay, QStringLiteral("B only really draws something else"));
     check(drawnA != drawnB, QStringLiteral("and the two revisions differ from each other"));
 
-    // `Tab` reaches all three, in one direction, from wherever it is. The
-    // window is on the overlay here.
+    // `Tab` blinks between the two revisions and never shows the overlay: a
+    // third picture between them would break the effect the key exists for.
+    // The window is on the overlay here, so the first one enters the blink.
     auto *tab = win.findChild<QAction *>(QStringLiteral("flip"));
     tab->trigger();
     QTest::qWait(20);
@@ -235,9 +236,15 @@ int main(int argc, char **argv) {
     check(status->text().contains(QStringLiteral("B only")), QStringLiteral("Tab: A -> B"));
     tab->trigger();
     QTest::qWait(20);
-    check(status->text().contains(QStringLiteral("Overlay")), QStringLiteral("Tab: B -> overlay"));
+    check(status->text().contains(QStringLiteral("A only")), QStringLiteral("Tab: B -> A"));
+    tab->trigger();
+    QTest::qWait(20);
+    check(status->text().contains(QStringLiteral("B only")),
+          QStringLiteral("and never lands on the overlay: '%1'").arg(status->text()));
     check(view->currentPage() == pageBefore && qFuzzyCompare(view->zoom(), zoomBefore),
-          QStringLiteral("and the whole cycle leaves the view where it was"));
+          QStringLiteral("and blinking leaves the view where it was"));
+    win.findChild<QAction *>(QStringLiteral("overlay"))->trigger();
+    QTest::qWait(20);
 
     // The finished sweep should have spotted the title block and be offering
     // it — offering, with the menu item enabled, not applying it.

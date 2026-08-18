@@ -465,14 +465,16 @@ broken the same way and for the same reason, and it changes the page count as
 well. `invalidate()` now rebuilds the layout, which is what "everything drawn is
 stale" always meant.
 
-Two things about that row of buttons were settled by using it. **`Tab` cycles
-all three** — overlay, A, B, overlay — rather than stepping to one of them and
-remembering where it had come from. The old behaviour made the same key do
-different things depending on history, which is the one property a blink
-comparator must not have: the overlay says *where* something changed and the two
-single readings say *what* it was, and one key in one direction reaches all
-three. **Side by side is the fourth member of the same exclusive choice**, not a
-separate toggle beside it. It is a layout rather than a view mode, and the code
+Two things about that row of buttons were settled by using it. **`Tab` blinks
+between the two revisions and never shows the overlay.** It had remembered which
+view it started from and returned there, so the same key did different things
+depending on history — but the fix is not to cycle all three. A blink comparator
+works because the two pictures are the same drawing at the same place and only
+what changed moves; the overlay differs from both of them everywhere there is
+colour, so putting it between them breaks the effect the key exists for. `Tab`
+is A, B, A, B, entering at A from anywhere else, and the overlay has a keystroke
+of its own. **Side by side is the fourth member of the same exclusive choice**,
+not a separate toggle beside it. It is a layout rather than a view mode, and the code
 keeps that distinction, but from the reader's chair it is the fourth answer to
 "what am I looking at" — and a checkable pair that can both be on says the window
 is showing two things at once.

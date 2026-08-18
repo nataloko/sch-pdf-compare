@@ -166,7 +166,7 @@ void MainWindow::buildMenus() {
         m_needSession.append(a);
     }
     m_overlayAct->setChecked(true);
-    QAction *flip = view->addAction(tr("Ne&xt View"), this, &MainWindow::blink);
+    QAction *flip = view->addAction(tr("&Blink A / B"), this, &MainWindow::blink);
     flip->setObjectName(QStringLiteral("flip"));
     flip->setShortcut(Qt::Key_Tab);
     m_needSession.append(flip);
@@ -697,24 +697,15 @@ void MainWindow::blink() {
     if (!m_session) {
         return;
     }
-    // Overlay, A, B, overlay. One key that reaches all three, in the order the
-    // eye wants them: the overlay says *where* something changed, and the two
-    // single readings say *what* it was, which is the question the overlay
-    // raises. An earlier version remembered which of the three `Tab` had
-    // started from and returned there, so the same key did different things
-    // depending on history — the one property a blink comparator must not have.
+    // A, B, A, B. The overlay is deliberately not in the cycle: this is a blink
+    // comparator, and it works because the two readings are the same drawing at
+    // the same place and only what changed moves. Putting a third picture
+    // between them — one that differs from both everywhere there is colour —
+    // breaks exactly the effect the key exists for. From anywhere else, the
+    // first `Tab` enters the blink at A; the overlay is a keystroke of its own.
     // Zoom and scroll never move: the eye catches what jumps.
-    switch (m_session->viewMode()) {
-    case SC_VIEW_MODE_OVERLAY:
-        m_session->setViewMode(SC_VIEW_MODE_ONLY_A);
-        break;
-    case SC_VIEW_MODE_ONLY_A:
-        m_session->setViewMode(SC_VIEW_MODE_ONLY_B);
-        break;
-    default:
-        m_session->setViewMode(SC_VIEW_MODE_OVERLAY);
-        break;
-    }
+    m_session->setViewMode(m_session->viewMode() == SC_VIEW_MODE_ONLY_A ? SC_VIEW_MODE_ONLY_B
+                                                                        : SC_VIEW_MODE_ONLY_A);
     // Leaves side by side, because the cycle is over the single-sheet views and
     // `syncViewActions` checks one of them — which, in one exclusive group,
     // switches side by side off and the layout back with it.

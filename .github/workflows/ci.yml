@@ -148,7 +148,15 @@ jobs:
       # Fedora image has none: without this it falls back to downloading a
       # tarball through the API, which works until it does not.
       - name: What the actions themselves need
-        run: dnf -y install --setopt=install_weak_deps=False git tar
+        run: |
+          dnf -y install --setopt=install_weak_deps=False git tar
+          # The runner checks the workspace out as its own user and this job
+          # runs as root inside the container, which git reads as dubious
+          # ownership and refuses. It does not fail the build: it makes
+          # `git rev-parse HEAD` fail, and the installer then carries
+          # "commit: unknown" in its BUILD-INFO — provenance quietly lost from
+          # the one file that ties a downloaded binary back to its source.
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
 
       - uses: actions/checkout@v5
 

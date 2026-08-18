@@ -34,7 +34,10 @@ impl Session {
         let zoom = SCAN_DPI / 72.0;
         let pair = self.pair(page_no);
         if pair.page_a == 0 && pair.page_b == 0 {
-            return Ok(SheetChanges { page_no, ..Default::default() });
+            return Ok(SheetChanges {
+                page_no,
+                ..Default::default()
+            });
         }
         let (doc_a, doc_b) = self.docs();
 
@@ -46,7 +49,10 @@ impl Session {
             doc_b.page_device_size(pair.page_b, zoom)?
         };
         if w <= 0 || h <= 0 {
-            return Ok(SheetChanges { page_no, ..Default::default() });
+            return Ok(SheetChanges {
+                page_no,
+                ..Default::default()
+            });
         }
 
         let ra = render_or_blank(doc_a, pair.page_a, zoom, w, h)?;
@@ -62,7 +68,10 @@ impl Session {
     /// Converts a scan's boxes to page points and splits off the ones the reader
     /// has excluded.
     fn to_page_space(&self, page_no: i32, found: &[Change], zoom: f32) -> SheetChanges {
-        let mut out = SheetChanges { page_no, ..Default::default() };
+        let mut out = SheetChanges {
+            page_no,
+            ..Default::default()
+        };
         for c in found {
             let r = RectF::from_device(c.box_, zoom);
             if self.ignore_rects().iter().any(|ig| ig.contains_rect(&r)) {
@@ -98,5 +107,11 @@ fn render_or_blank(
 /// is already the kernel's `Bgr8`, so this is a description, not a conversion.
 fn as_pixels(r: Option<&sc_render::Raster>, w: i32, h: i32) -> Option<Pixels<'_>> {
     let r = r?;
-    Pixels::new(r.samples(), w.min(r.width()), h.min(r.height()), r.stride(), PixelFormat::Bgr8)
+    Pixels::new(
+        r.samples(),
+        w.min(r.width()),
+        h.min(r.height()),
+        r.stride(),
+        PixelFormat::Bgr8,
+    )
 }

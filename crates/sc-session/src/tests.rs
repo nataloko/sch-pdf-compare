@@ -10,7 +10,9 @@ use super::*;
 use std::path::PathBuf;
 
 fn sample(name: &str) -> Option<String> {
-    let p = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../samples").join(name);
+    let p = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("../../samples")
+        .join(name);
     p.exists().then(|| p.to_string_lossy().into_owned())
 }
 
@@ -73,7 +75,9 @@ fn across_pdf_producers_the_floor_is_rendering_not_alignment() {
 
 #[test]
 fn tolerance_cuts_the_fringe() {
-    let Some(mut s) = session(B03, D02) else { return };
+    let Some(mut s) = session(B03, D02) else {
+        return;
+    };
     let mut strict = s.options();
     strict.tolerance = 0;
     s.set_options(strict);
@@ -84,12 +88,17 @@ fn tolerance_cuts_the_fringe() {
     s.set_options(loose);
     let slack = s.scan_page(2).expect("scans").pixels;
 
-    assert!(slack * 3 < raw, "1px of slack should absorb most of the fringe: {raw} -> {slack}");
+    assert!(
+        slack * 3 < raw,
+        "1px of slack should absorb most of the fringe: {raw} -> {slack}"
+    );
 }
 
 #[test]
 fn an_excluded_region_is_counted_never_dropped() {
-    let Some(mut s) = session(A10, B03) else { return };
+    let Some(mut s) = session(A10, B03) else {
+        return;
+    };
     let before = s.scan_page(2).expect("scans");
     assert_eq!(before.ignored, 0);
 
@@ -98,23 +107,40 @@ fn an_excluded_region_is_counted_never_dropped() {
     s.add_ignore_rect(RectF::new(w * 0.75, h * 0.9, w * 0.25, h * 0.1));
 
     let after = s.scan_page(2).expect("scans");
-    assert!(after.changes.len() < before.changes.len(), "the excluded region stopped counting");
-    assert!(after.ignored > 0, "and it is reported as excluded, not silently gone");
-    assert_eq!(after.changes.len() + after.ignored as usize, before.changes.len());
+    assert!(
+        after.changes.len() < before.changes.len(),
+        "the excluded region stopped counting"
+    );
+    assert!(
+        after.ignored > 0,
+        "and it is reported as excluded, not silently gone"
+    );
+    assert_eq!(
+        after.changes.len() + after.ignored as usize,
+        before.changes.len()
+    );
 
     s.clear_ignore_rects();
-    assert_eq!(s.scan_page(2).expect("scans").changes.len(), before.changes.len());
+    assert_eq!(
+        s.scan_page(2).expect("scans").changes.len(),
+        before.changes.len()
+    );
 }
 
 #[test]
 fn an_unmatched_sheet_is_not_an_unchanged_one() {
     // Nudge the pairing so A's sheet 1 has no counterpart. It has to come back
     // as entirely removed, not as a quiet page with nothing on it.
-    let Some(mut s) = session(A10, B03) else { return };
+    let Some(mut s) = session(A10, B03) else {
+        return;
+    };
     s.set_page_delta(1);
     assert_eq!(s.page_delta(), 1);
     let p = s.pair(1);
     assert_eq!((p.page_a, p.page_b), (0, 1));
     let r = s.scan_page(1).expect("scans");
-    assert!(!r.changes.is_empty(), "a sheet present in only one revision is all change");
+    assert!(
+        !r.changes.is_empty(),
+        "a sheet present in only one revision is all change"
+    );
 }

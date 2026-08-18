@@ -1,0 +1,21 @@
+[package]
+name = "sc-ffi"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+# `cdylib` is what the shell links; `staticlib` is there for a build that would
+# rather not ship a second file; `rlib` so the workspace's own tests can use it.
+[lib]
+name = "schcompare"
+crate-type = ["cdylib", "staticlib", "rlib"]
+
+[dependencies]
+sc-diff.workspace = true
+sc-match.workspace = true
+sc-render.workspace = true
+sc-session.workspace = true
+
+[build-dependencies]
+cbindgen = "0.29"

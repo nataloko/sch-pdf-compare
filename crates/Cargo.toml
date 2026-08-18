@@ -1,0 +1,28 @@
+# The Rust core of sch-pdf-compare.
+#
+# Everything the application knows how to do lives here; `shell/` is a Qt
+# frontend that draws what this hands it and does no thinking of its own.
+# The seam between them is `sc-ffi`'s flat C ABI, and nothing Qt-shaped ever
+# crosses it.
+
+[workspace]
+resolver = "2"
+members = [
+    "sc-diff",     # the comparison kernel: ink, tolerance, compose, cluster
+    "sc-render",   # MuPDF: open a document, render a page rect to pixels
+    "sc-match",    # pairing two documents' sheets
+    "sc-session",  # the model: a document pair and everything asked about it
+    "sc-ffi",      # the C ABI, and the only crate the shell links
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "AGPL-3.0-or-later"
+repository = "https://github.com/nataloko/sch-pdf-compare"
+
+[workspace.dependencies]
+sc-diff = { path = "sc-diff" }
+sc-render = { path = "sc-render" }
+sc-match = { path = "sc-match" }
+sc-session = { path = "sc-session" }

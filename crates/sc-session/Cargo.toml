@@ -1,0 +1,11 @@
+[package]
+name = "sc-session"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+sc-diff.workspace = true
+sc-match.workspace = true
+sc-render.workspace = true

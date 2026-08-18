@@ -535,3 +535,73 @@ fn pairing_empty() {
     assert_eq!(p.page_count, 0);
     assert_eq!(p.at(1), Pair::default());
 }
+
+#[test]
+fn the_render_margin_is_what_stops_a_tile_edge_inventing_a_change() {
+    // Gotcha, paid for once already: each side must be rendered with `tolerance`
+    // extra pixels of context, or the dilation at a tile's border has no
+    // neighbours to look at and every seam grows a line of changes that are not
+    // on the drawing.
+    //
+    // The same stroke, one pixel apart in the two documents, sitting right at a
+    // tile boundary. With context it is recognised as one stroke; without, the
+    // tile can only see one half of the evidence.
+    let one = Options {
+        tolerance: 1,
+        ..red_green()
+    };
+
+    // Five pixels of content: A's stroke at x=3, B's at x=4.
+    let mut la = [0xffu8; 5];
+    let mut lb = [0xffu8; 5];
+    la[3] = 0x00;
+    lb[4] = 0x00;
+    let da = make_gray(5, 1, &la);
+    let db = make_gray(5, 1, &lb);
+    let a = gray(&da, 5, 1);
+    let b = gray(&db, 5, 1);
+
+    fn is_coloured(p: [u8; 3]) -> bool {
+        let lo = *p.iter().min().expect("three channels") as i32;
+        let hi = *p.iter().max().expect("three channels") as i32;
+        hi - lo > 40
+    }
+
+    // A tile covering x=1..4, rendered with one pixel of context either side, so
+    // the compositor is handed all five pixels and told the margin is 1.
+    let with_context = compose(
+        Some(&a),
+        Some(&b),
+        Size::new(3, 1),
+        1,
+        ViewMode::Overlay,
+        &one,
+        None,
+    )
+    .expect("composes");
+    assert!(
+        !is_coloured(with_context.bgr_at(2, 0)),
+        "with a pixel of context the two strokes are recognised as one"
+    );
+
+    // The same tile rendered without context: only x=1..4 exists, so B's stroke
+    // at x=4 is not in the evidence and A's at x=3 looks unmatched.
+    let da_cut = make_gray(3, 1, &la[1..4]);
+    let db_cut = make_gray(3, 1, &lb[1..4]);
+    let a_cut = gray(&da_cut, 3, 1);
+    let b_cut = gray(&db_cut, 3, 1);
+    let no_context = compose(
+        Some(&a_cut),
+        Some(&b_cut),
+        Size::new(3, 1),
+        0,
+        ViewMode::Overlay,
+        &one,
+        None,
+    )
+    .expect("composes");
+    assert!(
+        is_coloured(no_context.bgr_at(2, 0)),
+        "without context the tile edge invents a change — this is the bug the margin prevents"
+    );
+}

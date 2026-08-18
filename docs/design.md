@@ -130,7 +130,16 @@ failure, which is why they are written down.
    status and pokes a wakeup handle, and the shell reads the status. The
    ordering hazard cannot arise.
 
-6. **`-for-testing` deliberately does not save settings.** Persistence has to be
+6. **MuPDF's image scaler is not tile-invariant.** It chooses an image's
+   subsample factor from the destination pixmap, so a tile that overlaps an
+   embedded raster can differ from the same window of a full-page render by a
+   few grey levels — measured at up to 17 on sheet 2 of the sample set, which
+   carries a small logo. This is harmless *for the comparison*, because both
+   documents are rendered with identical tile geometry and shift together, but
+   it means a tile render is not byte-comparable to a full-page render and no
+   test should assert that it is. Compare verdicts, not bytes.
+
+7. **`-for-testing` deliberately does not save settings.** Persistence has to be
    exercised without it.
 
 ### Dead, and why

@@ -7,6 +7,7 @@
 #![forbid(unsafe_code)]
 
 mod scan;
+mod tile;
 
 pub use scan::{SheetChanges, SCAN_DPI};
 
@@ -115,6 +116,19 @@ impl Session {
             self.doc_a.page_size(p.page_a)
         } else if p.page_b != 0 {
             self.doc_b.page_size(p.page_b)
+        } else {
+            Err(Error::NoSuchPage(page_no))
+        }
+    }
+
+    /// The virtual sheet's size in device pixels at `zoom`, as MuPDF rounds it.
+    /// The viewer lays pages out with this before it has rendered any of them.
+    pub fn page_device_size(&self, page_no: i32, zoom: f32) -> Result<(i32, i32)> {
+        let p = self.pairing.at(page_no);
+        if p.page_a != 0 {
+            self.doc_a.page_device_size(p.page_a, zoom)
+        } else if p.page_b != 0 {
+            self.doc_b.page_device_size(p.page_b, zoom)
         } else {
             Err(Error::NoSuchPage(page_no))
         }

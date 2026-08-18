@@ -24,10 +24,12 @@ fi
 tools=${LINUXDEPLOY_DIR:-$HOME/.local/bin}
 ld=$tools/linuxdeploy.dir/AppRun
 qtdir=$tools/linuxdeploy-qt.dir
-if ! command -v rsvg-convert >/dev/null; then
-    echo "no rsvg-convert — install librsvg2-bin to render the icon" >&2
-    exit 1
-fi
+for tool in rsvg-convert patchelf; do
+    if ! command -v "$tool" >/dev/null; then
+        echo "no $tool on PATH — install it (librsvg2-bin, patchelf)" >&2
+        exit 1
+    fi
+done
 
 for t in "$ld" "$qtdir/AppRun"; do
     if [ ! -x "$t" ]; then
@@ -83,8 +85,18 @@ export QMAKE=${QMAKE:-$(command -v qmake6 || echo /usr/lib/qt6/bin/qmake)}
 qtplugins=$("$QMAKE" -query QT_INSTALL_PLUGINS 2>/dev/null || echo /usr/lib/x86_64-linux-gnu/qt6/plugins)
 gfx=$qtplugins/wayland-graphics-integration-client/libqt-plugin-wayland-egl.so
 if [ -f "$gfx" ]; then
-    mkdir -p "$out/AppDir/usr/plugins/wayland-graphics-integration-client"
-    install -m644 "$gfx" "$out/AppDir/usr/plugins/wayland-graphics-integration-client/"
+    d=$out/AppDir/usr/plugins/wayland-graphics-integration-client
+    mkdir -p "$d"
+    install -m644 "$gfx" "$d/"
+    # linuxdeploy rewrites the run path of everything it deploys itself and
+    # leaves anything already in the AppDir alone, so this copy has to be
+    # pointed at the bundled Qt by hand. Without it the plugin still loads its
+    # metadata — so the log says the integration is *available* — and then fails
+    # to dlopen for want of libQt6WaylandEglClientHwIntegration.so.6. On a build
+    # machine that has Qt installed it finds the system copy and everything
+    # looks right; on the machine the image was made for, it does not. Test on
+    # the target, not on the machine that built it.
+    patchelf --set-rpath '$ORIGIN/../../lib:$ORIGIN' "$d/libqt-plugin-wayland-egl.so"
 else
     echo "warning: no $gfx — the AppImage will have no window decorations on Wayland" >&2
 fi

@@ -465,6 +465,18 @@ broken the same way and for the same reason, and it changes the page count as
 well. `invalidate()` now rebuilds the layout, which is what "everything drawn is
 stale" always meant.
 
+Two things about that row of buttons were settled by using it. **`Tab` cycles
+all three** — overlay, A, B, overlay — rather than stepping to one of them and
+remembering where it had come from. The old behaviour made the same key do
+different things depending on history, which is the one property a blink
+comparator must not have: the overlay says *where* something changed and the two
+single readings say *what* it was, and one key in one direction reaches all
+three. **Side by side is the fourth member of the same exclusive choice**, not a
+separate toggle beside it. It is a layout rather than a view mode, and the code
+keeps that distinction, but from the reader's chair it is the fourth answer to
+"what am I looking at" — and a checkable pair that can both be on says the window
+is showing two things at once.
+
 The reason it shipped is worth more than the fix. The window test drove the
 action and then asserted on **the words the window says about itself**:
 

@@ -144,9 +144,12 @@ void MainWindow::buildMenus() {
     // Bare 1/2/3 rather than a modifier: switching what you are looking at is
     // the most frequent thing a reader does here, and `Tab` next to them makes
     // the pair a blink comparator.
-    // Checkable and in a group: which of the three you are looking at is the
-    // one thing the window must never leave you guessing about, and a bare key
-    // that changes it silently is exactly how you end up guessing.
+    // Checkable and in one group of four: which of them you are looking at is
+    // the one thing the window must never leave you guessing about, and a bare
+    // key that changes it silently is exactly how you end up guessing. Side by
+    // side belongs in the group even though it is a layout rather than a view
+    // mode — from the reader's chair it is the fourth answer to "what am I
+    // looking at", and a checkable pair that can both be on says otherwise.
     m_modeGroup = new QActionGroup(this);
     m_overlayAct = view->addAction(tr("&Overlay"), this, [this] { setViewMode(0); });
     m_overlayAct->setObjectName(QStringLiteral("overlay"));
@@ -163,7 +166,7 @@ void MainWindow::buildMenus() {
         m_needSession.append(a);
     }
     m_overlayAct->setChecked(true);
-    QAction *flip = view->addAction(tr("&Flip A / B"), this, &MainWindow::blink);
+    QAction *flip = view->addAction(tr("Ne&xt View"), this, &MainWindow::blink);
     flip->setObjectName(QStringLiteral("flip"));
     flip->setShortcut(Qt::Key_Tab);
     m_needSession.append(flip);
@@ -177,6 +180,7 @@ void MainWindow::buildMenus() {
     sbs->setCheckable(true);
     sbs->setShortcut(Qt::Key_4);
     m_needSession.append(sbs);
+    m_modeGroup->addAction(sbs);
     connect(sbs, &QAction::toggled, this, [this](bool on) {
         m_view->setLayout(on ? CompareView::Layout::SideBySide : CompareView::Layout::Single);
         updateStatus();
@@ -693,21 +697,27 @@ void MainWindow::blink() {
     if (!m_session) {
         return;
     }
-    // Straight from the overlay, `Tab` shows A and remembers to come back to the
-    // overlay rather than to B. Zoom and scroll never move, which is the whole
-    // point: the eye catches what jumps.
+    // Overlay, A, B, overlay. One key that reaches all three, in the order the
+    // eye wants them: the overlay says *where* something changed, and the two
+    // single readings say *what* it was, which is the question the overlay
+    // raises. An earlier version remembered which of the three `Tab` had
+    // started from and returned there, so the same key did different things
+    // depending on history — the one property a blink comparator must not have.
+    // Zoom and scroll never move: the eye catches what jumps.
     switch (m_session->viewMode()) {
+    case SC_VIEW_MODE_OVERLAY:
+        m_session->setViewMode(SC_VIEW_MODE_ONLY_A);
+        break;
     case SC_VIEW_MODE_ONLY_A:
         m_session->setViewMode(SC_VIEW_MODE_ONLY_B);
         break;
-    case SC_VIEW_MODE_ONLY_B:
-        m_session->setViewMode(m_blinkFrom == 0 ? SC_VIEW_MODE_OVERLAY : SC_VIEW_MODE_ONLY_A);
-        break;
     default:
-        m_blinkFrom = 0;
-        m_session->setViewMode(SC_VIEW_MODE_ONLY_A);
+        m_session->setViewMode(SC_VIEW_MODE_OVERLAY);
         break;
     }
+    // Leaves side by side, because the cycle is over the single-sheet views and
+    // `syncViewActions` checks one of them — which, in one exclusive group,
+    // switches side by side off and the layout back with it.
     syncViewActions();
     updateStatus();
 }

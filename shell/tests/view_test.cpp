@@ -43,6 +43,11 @@ static void check(bool ok, const QString &what) {
     }
 }
 
+static bool actionChecked(const QWidget &win, const char *name) {
+    auto *a = win.findChild<QAction *>(QString::fromLatin1(name));
+    return a && a->isChecked();
+}
+
 static void shot(QWidget *w, const QString &name) {
     if (writeDir.isEmpty()) {
         return;
@@ -218,6 +223,21 @@ int main(int argc, char **argv) {
     check(drawnA != drawnOverlay, QStringLiteral("A only really draws something else"));
     check(drawnB != drawnOverlay, QStringLiteral("B only really draws something else"));
     check(drawnA != drawnB, QStringLiteral("and the two revisions differ from each other"));
+
+    // `Tab` reaches all three, in one direction, from wherever it is. The
+    // window is on the overlay here.
+    auto *tab = win.findChild<QAction *>(QStringLiteral("flip"));
+    tab->trigger();
+    QTest::qWait(20);
+    check(status->text().contains(QStringLiteral("A only")), QStringLiteral("Tab: overlay -> A"));
+    tab->trigger();
+    QTest::qWait(20);
+    check(status->text().contains(QStringLiteral("B only")), QStringLiteral("Tab: A -> B"));
+    tab->trigger();
+    QTest::qWait(20);
+    check(status->text().contains(QStringLiteral("Overlay")), QStringLiteral("Tab: B -> overlay"));
+    check(view->currentPage() == pageBefore && qFuzzyCompare(view->zoom(), zoomBefore),
+          QStringLiteral("and the whole cycle leaves the view where it was"));
 
     // The finished sweep should have spotted the title block and be offering
     // it — offering, with the menu item enabled, not applying it.
@@ -400,10 +420,17 @@ int main(int argc, char **argv) {
                   .arg(view->zoom()));
         shot(&win, QStringLiteral("side-by-side"));
 
-        sbs->setChecked(false);
+        // The four are one exclusive choice, so side by side is on only while
+        // none of the single-sheet views is, and picking one is how a reader
+        // leaves it. Two of them checked at once would say the window is
+        // showing two things at once.
+        check(!actionChecked(win, "overlay") && !actionChecked(win, "onlyA") && !actionChecked(win, "onlyB"),
+              QStringLiteral("side by side is checked instead of a single view"));
+        win.findChild<QAction *>(QStringLiteral("overlay"))->trigger();
         QTest::qWait(50);
         check(view->layout() == CompareView::Layout::Single,
-              QStringLiteral("and goes back to one sheet"));
+              QStringLiteral("and choosing a single view goes back to one sheet"));
+        check(!sbs->isChecked(), QStringLiteral("and unchecks side by side"));
     }
 
     // Printing, checked by printing to a PDF and reading back what came out.

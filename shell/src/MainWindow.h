@@ -86,8 +86,6 @@ class MainWindow : public QMainWindow {
     QLabel *m_status = nullptr;
     Session *m_session = nullptr;
     bool m_forTesting = false;
-    // Where `Tab` came from, so it can go back.
-    int m_blinkFrom = 0;
     // The change the reader is standing on, as (sheet, index).
     int m_atSheet = 0;
     int m_atIndex = -1;

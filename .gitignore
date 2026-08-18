@@ -1,0 +1,12 @@
+# customer/project sample documents: never commit these
+samples/
+
+# build output
+target/
+shell/build/
+build/
+
+# editor / tooling
+.cache/
+compile_commands.json
+*.swp

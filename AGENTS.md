@@ -80,6 +80,19 @@ the sibling Sterna project uses — or a Qt built by hand.
 ## Testing
 
 ```sh
+./check.sh
+```
+
+That is the whole check: build, tests, formatting, clippy at zero warnings, the
+generated header matching its source, the Qt tests, and that no customer
+material has been committed. **Use it rather than reading build output.** Twice
+during this project a grep for the word "error" reported a clean run while the
+test binaries were not compiling at all — a build that fails prints no test
+results, and "no failures found" is not the same as "the tests passed".
+
+The pieces on their own, when iterating:
+
+```sh
 ctest --test-dir shell/build --output-on-failure   # ABI harness, Qt tests
 cd crates && cargo test                            # the core
 ```

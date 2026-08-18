@@ -171,7 +171,7 @@ fn a_tile_reports_the_same_changes_as_the_whole_sheet() {
     let (w, h) = s.page_device_size(2, zoom).expect("has a sheet 2");
 
     let whole = s
-        .compose_tile(2, zoom, Tile::whole(w, h))
+        .compose_tile(2, zoom, Tile::whole(w, h), s.view_mode())
         .expect("composes");
     let t = Tile::new(320, 240, 200, 160);
     let part = s.compose_tile(2, zoom, t, s.view_mode()).expect("composes");
@@ -219,7 +219,7 @@ fn a_single_document_view_reproduces_that_document_untouched() {
 
     s.set_view_mode(ViewMode::OnlyA);
     let only_a = s
-        .compose_tile(2, zoom, Tile::whole(w, h))
+        .compose_tile(2, zoom, Tile::whole(w, h), s.view_mode())
         .expect("composes");
     for y in 0..h {
         for x in 0..w {
@@ -241,7 +241,7 @@ fn the_overlay_colours_something_these_revisions_disagree_about() {
     let (w, h) = s.page_device_size(2, zoom).expect("has a sheet 2");
     s.set_view_mode(ViewMode::Overlay);
     let out = s
-        .compose_tile(2, zoom, Tile::whole(w, h))
+        .compose_tile(2, zoom, Tile::whole(w, h), s.view_mode())
         .expect("composes");
     let n = (0..h)
         .flat_map(|y| (0..w).map(move |x| (x, y)))

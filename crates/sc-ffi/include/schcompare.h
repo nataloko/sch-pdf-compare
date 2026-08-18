@@ -259,7 +259,8 @@ ScStatus sc_session_page_device_size(const ScSession *s,
  * Composes a tile of the comparison.
  *
  * `x` and `y` are device pixels at `zoom` with their origin at the sheet's
- * top-left.
+ * top-left. `mode` is per tile rather than taken from the session, because a
+ * side-by-side view wants both single-document views on screen at once.
  *
  * # Safety
  * `s` must be a live session and `out` writable. **The pixels `out` points at
@@ -274,6 +275,7 @@ ScStatus sc_session_tile(ScSession *s,
                          int32_t y,
                          int32_t width,
                          int32_t height,
+                         ScViewMode mode,
                          ScTile *out);
 
 /**

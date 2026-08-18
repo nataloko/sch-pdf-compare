@@ -317,7 +317,8 @@ pub unsafe extern "C" fn sc_session_page_device_size(
 /// Composes a tile of the comparison.
 ///
 /// `x` and `y` are device pixels at `zoom` with their origin at the sheet's
-/// top-left.
+/// top-left. `mode` is per tile rather than taken from the session, because a
+/// side-by-side view wants both single-document views on screen at once.
 ///
 /// # Safety
 /// `s` must be a live session and `out` writable. **The pixels `out` points at
@@ -333,15 +334,18 @@ pub unsafe extern "C" fn sc_session_tile(
     y: i32,
     width: i32,
     height: i32,
+    mode: ScViewMode,
     out: *mut ScTile,
 ) -> ScStatus {
     let (Some(s), false) = (s.as_mut(), out.is_null()) else {
         return invalid("a live session and a writable tile are required");
     };
-    match s
-        .inner
-        .compose_tile(page_no, zoom, RenderTile::new(x, y, width, height))
-    {
+    match s.inner.compose_tile(
+        page_no,
+        zoom,
+        RenderTile::new(x, y, width, height),
+        mode.into(),
+    ) {
         Ok(tile) => {
             let t = s.last_tile.insert(tile);
             *out = ScTile {

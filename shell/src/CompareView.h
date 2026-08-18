@@ -7,6 +7,8 @@
 // Copyright (c) the sch-pdf-compare authors. AGPL-3.0-or-later; see LICENSE.
 #pragma once
 
+#include "Session.h"
+
 #include <QAbstractScrollArea>
 #include <QHash>
 #include <QImage>
@@ -25,6 +27,20 @@ class CompareView : public QAbstractScrollArea {
     Session *session() const { return m_session; }
 
     enum class Fit { None, Width, Page };
+
+    // How the sheets are arranged in the viewport.
+    //
+    // `Single` is one sheet at a time in whichever view the session is set to.
+    // `SideBySide` puts the two revisions next to each other: the pair shares
+    // one scroll and one zoom, so panning is synchronised by construction rather
+    // than by keeping two viewports in step.
+    //
+    // It earns its place where the overlay is at its worst — text that changed
+    // is drawn twice on top of itself and neither reading is legible.
+    enum class Layout { Single, SideBySide };
+
+    Layout layout() const { return m_layout_mode; }
+    void setLayout(Layout l);
 
     double zoom() const { return m_zoom; }
     void setZoom(double z, const QPoint &anchor = QPoint(-1, -1));
@@ -63,12 +79,15 @@ class CompareView : public QAbstractScrollArea {
     struct Placed {
         int page = 0;
         QRect rect; // in content coordinates, device pixels at m_zoom
+        // Which document this rectangle shows. In `Single` it is the session's
+        // current view mode; side by side puts one of each.
+        ScViewMode mode = SC_VIEW_MODE_OVERLAY;
     };
 
     void relayout();
     void applyFit();
     QPoint contentOrigin() const;
-    const QImage &tileAt(int page, const QRect &tile);
+    const QImage &tileAt(int page, const QRect &tile, ScViewMode mode);
     // Content coordinates -> (page, point in page space)
     bool contentToPage(const QPoint &content, int *page, QPointF *pagePt) const;
     QRect pageRectToContent(int page, const QRectF &pageRect) const;
@@ -76,6 +95,7 @@ class CompareView : public QAbstractScrollArea {
     Session *m_session = nullptr;
     double m_zoom = 1.0;
     Fit m_fit = Fit::Width;
+    Layout m_layout_mode = Layout::Single;
     QVector<Placed> m_layout;
     QSize m_content;
 

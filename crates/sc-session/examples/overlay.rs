@@ -20,7 +20,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let s = Session::open(&a[1], &a[2])?;
     let zoom = dpi / 72.0;
     let (w, h) = s.page_device_size(page, zoom)?;
-    let t = s.compose_tile(page, zoom, Tile::whole(w, h))?;
+    let t = s.compose_tile(page, zoom, Tile::whole(w, h), s.view_mode())?;
 
     let mut out = std::io::BufWriter::new(std::fs::File::create(&a[4])?);
     write!(out, "P6\n{w} {h}\n255\n")?;

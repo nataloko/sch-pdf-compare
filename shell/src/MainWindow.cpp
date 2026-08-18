@@ -118,6 +118,18 @@ void MainWindow::buildMenus() {
     flip->setObjectName(QStringLiteral("flip"));
     flip->setShortcut(Qt::Key_Tab);
     view->addSeparator();
+    // A checkable pair rather than a third view mode: this changes how the
+    // viewport is arranged, not what the core composes, and the A/B/overlay
+    // choice still applies inside the single-sheet layout.
+    QAction *sbs = view->addAction(tr("&Side by Side"));
+    sbs->setObjectName(QStringLiteral("sideBySide"));
+    sbs->setCheckable(true);
+    sbs->setShortcut(Qt::Key_4);
+    connect(sbs, &QAction::toggled, this, [this](bool on) {
+        m_view->setLayout(on ? CompareView::Layout::SideBySide : CompareView::Layout::Single);
+        updateStatus();
+    });
+    view->addSeparator();
     QAction *fw = view->addAction(tr("Fit &Width"), this,
                                   [this] { m_view->setFit(CompareView::Fit::Width); });
     fw->setShortcut(Qt::CTRL | Qt::Key_0);
@@ -418,7 +430,8 @@ void MainWindow::paintSheetForPrint(QPainter &g, QPrinter &printer, int sheet) {
     if (deviceSize.isEmpty()) {
         return;
     }
-    const QImage img = m_session->tile(sheet, zoom, QRect(QPoint(0, 0), deviceSize));
+    const QImage img =
+        m_session->tile(sheet, zoom, QRect(QPoint(0, 0), deviceSize), m_session->viewMode());
     if (img.isNull()) {
         return;
     }
@@ -431,6 +444,9 @@ void MainWindow::paintSheetForPrint(QPainter &g, QPrinter &printer, int sheet) {
     g.setRenderHint(QPainter::SmoothPixmapTransform, true);
     g.drawImage(target, img);
 
+    // Printing always puts one sheet on a page in the session's own view; the
+    // side-by-side arrangement is a property of the viewport, not of what gets
+    // composed, so it has nothing to say here.
     QString mode;
     switch (m_session->viewMode()) {
     case SC_VIEW_MODE_ONLY_A:
@@ -729,16 +745,20 @@ void MainWindow::updateStatus() {
     const int ignored = m_session->ignoredCount(page);
 
     QString mode;
-    switch (m_session->viewMode()) {
-    case SC_VIEW_MODE_ONLY_A:
-        mode = tr("A only");
-        break;
-    case SC_VIEW_MODE_ONLY_B:
-        mode = tr("B only");
-        break;
-    default:
-        mode = tr("Overlay");
-        break;
+    if (m_view->layout() == CompareView::Layout::SideBySide) {
+        mode = tr("Side by side");
+    } else {
+        switch (m_session->viewMode()) {
+        case SC_VIEW_MODE_ONLY_A:
+            mode = tr("A only");
+            break;
+        case SC_VIEW_MODE_ONLY_B:
+            mode = tr("B only");
+            break;
+        default:
+            mode = tr("Overlay");
+            break;
+        }
     }
 
     QString text = tr("Sheet %1 of %2   %3   %4%   tolerance %5")

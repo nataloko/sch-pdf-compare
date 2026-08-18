@@ -50,7 +50,7 @@ class Session : public QObject {
     // A composed tile. The core lends its pixels only until the next call, so
     // this copies — the view caches tiles and outlives that promise. Drawing
     // straight through without caching would not need the copy.
-    QImage tile(int page, double zoom, const QRect &r) const;
+    QImage tile(int page, double zoom, const QRect &r, ScViewMode mode) const;
 
     ScViewMode viewMode() const;
     void setViewMode(ScViewMode m);

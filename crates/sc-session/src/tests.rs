@@ -174,7 +174,7 @@ fn a_tile_reports_the_same_changes_as_the_whole_sheet() {
         .compose_tile(2, zoom, Tile::whole(w, h))
         .expect("composes");
     let t = Tile::new(320, 240, 200, 160);
-    let part = s.compose_tile(2, zoom, t).expect("composes");
+    let part = s.compose_tile(2, zoom, t, s.view_mode()).expect("composes");
 
     for y in 0..t.height {
         for x in 0..t.width {

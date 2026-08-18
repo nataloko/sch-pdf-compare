@@ -175,9 +175,10 @@ QSize Session::pageDeviceSize(int page, double zoom) const {
     return {w, h};
 }
 
-QImage Session::tile(int page, double zoom, const QRect &r) const {
+QImage Session::tile(int page, double zoom, const QRect &r, ScViewMode mode) const {
     ScTile t;
-    if (sc_session_tile(m_s, page, float(zoom), r.x(), r.y(), r.width(), r.height(), &t) < 0) {
+    if (sc_session_tile(m_s, page, float(zoom), r.x(), r.y(), r.width(), r.height(), mode,
+                        &t) < 0) {
         return {};
     }
     // Format_RGB32 is 0xffRRGGBB in a quint32, which on a little-endian host is

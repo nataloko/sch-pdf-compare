@@ -1,7 +1,9 @@
 // Copyright (c) the sch-pdf-compare authors. AGPL-3.0-or-later; see LICENSE.
 
 use crate::Session;
-use sc_diff::{compose, PixelFormat, Pixels, Point, Rect, Size, Tile as Composed, TileMasks};
+use sc_diff::{
+    compose, PixelFormat, Pixels, Point, Rect, Size, Tile as Composed, TileMasks, ViewMode,
+};
 use sc_render::{Document, Result, Tile};
 
 impl Session {
@@ -11,13 +13,29 @@ impl Session {
     /// top-left, which is the same coordinate space [`sc_render::Document`]
     /// renders in.
     ///
+    /// `mode` is asked for per tile rather than taken from the session, because
+    /// a side-by-side view wants both single-document views on screen at once
+    /// and neither of them is "the" current mode.
+    ///
     /// Both sides are rendered with `tolerance` extra pixels of context on every
     /// edge. Without that margin the dilation at a tile's border has no
     /// neighbours to look at and every seam in the viewport grows a line of
     /// changes that are not on the drawing.
-    pub fn compose_tile(&self, page_no: i32, zoom: f32, tile: Tile) -> Result<Composed> {
+    pub fn compose_tile(
+        &self,
+        page_no: i32,
+        zoom: f32,
+        tile: Tile,
+        mode: ViewMode,
+    ) -> Result<Composed> {
         let pair = self.pair(page_no);
-        let margin = self.options().tolerance.max(0);
+        // Only the overlay dilates, so only the overlay needs context around the
+        // tile. A single-document view is a straight copy.
+        let margin = if mode == ViewMode::Overlay {
+            self.options().tolerance.max(0)
+        } else {
+            0
+        };
         let grown = Tile::new(
             tile.x - margin,
             tile.y - margin,
@@ -39,7 +57,7 @@ impl Session {
             as_pixels(rb.as_ref(), grown).as_ref(),
             Size::new(tile.width, tile.height),
             margin,
-            self.view_mode(),
+            mode,
             &self.options(),
             (!rects.is_empty()).then_some(&masks),
         )

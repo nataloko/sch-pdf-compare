@@ -58,7 +58,8 @@ static void null_session_is_survivable(void) {
     check(sc_session_page_size(NULL, 1, &fw, &fh) < 0, "page_size(NULL) fails");
     check(sc_session_page_device_size(NULL, 1, 1.0f, &iw, &ih) < 0,
           "page_device_size(NULL) fails");
-    check(sc_session_tile(NULL, 1, 1.0f, 0, 0, 8, 8, &t) < 0, "tile(NULL) fails");
+    check(sc_session_tile(NULL, 1, 1.0f, 0, 0, 8, 8, SC_VIEW_MODE_OVERLAY, &t) < 0,
+          "tile(NULL) fails");
 
     check(sc_session_view_mode(NULL) == SC_VIEW_MODE_OVERLAY,
           "view_mode(NULL) is the default");
@@ -104,7 +105,8 @@ static void null_out_params_are_survivable(void) {
      * caller who got one thing wrong gets undefined behaviour instead of an
      * error code. */
     check(sc_session_page_size(NULL, 1, NULL, NULL) < 0, "page_size with null outs fails");
-    check(sc_session_tile(NULL, 1, 1.0f, 0, 0, 8, 8, NULL) < 0, "tile with a null out fails");
+    check(sc_session_tile(NULL, 1, 1.0f, 0, 0, 8, 8, SC_VIEW_MODE_OVERLAY, NULL) < 0,
+          "tile with a null out fails");
     check(sc_session_change(NULL, 1, 0, NULL) < 0, "change with a null out fails");
     check(sc_session_ignore_rect(NULL, 0, NULL) < 0, "ignore_rect with a null out fails");
     check(sc_session_sweep_status(NULL, NULL) < 0, "sweep_status with a null out fails");

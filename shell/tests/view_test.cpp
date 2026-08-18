@@ -231,6 +231,33 @@ int main(int argc, char **argv) {
         }
     }
 
+    // Side by side. Where the overlay is at its worst — text that changed is
+    // drawn twice on top of itself — this is what makes both readings legible.
+    {
+        auto *sbs = win.findChild<QAction *>(QStringLiteral("sideBySide"));
+        check(sbs != nullptr, QStringLiteral("there is a side-by-side action"));
+        const double before = view->zoom();
+        sbs->setChecked(true);
+        QTest::qWait(50);
+        check(view->layout() == CompareView::Layout::SideBySide,
+              QStringLiteral("the viewport is side by side"));
+        check(status->text().contains(QStringLiteral("Side by side")),
+              QStringLiteral("and says so: '%1'").arg(status->text()));
+        // Two sheets across means each is drawn smaller, so a fitted zoom has
+        // to come down. Leaving it alone would push half the comparison off
+        // screen, which is the whole thing this view exists to avoid.
+        check(view->zoom() < before,
+              QStringLiteral("fitting the width accounts for both sheets: %1 -> %2")
+                  .arg(before)
+                  .arg(view->zoom()));
+        shot(&win, QStringLiteral("side-by-side"));
+
+        sbs->setChecked(false);
+        QTest::qWait(50);
+        check(view->layout() == CompareView::Layout::Single,
+              QStringLiteral("and goes back to one sheet"));
+    }
+
     // Printing, checked by printing to a PDF and reading back what came out.
     // A reviewer's other output is paper: the overlay of the sheets that
     // changed, to mark up by hand.

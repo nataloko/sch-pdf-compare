@@ -62,17 +62,28 @@ void CompareView::relayout() {
         sizes.append(s);
         widest = qMax(widest, s.width());
     }
+    const bool twoUp = m_layout_mode == Layout::SideBySide;
+    // Side by side needs room for two of the widest sheet and a gutter between.
+    const int band = twoUp ? widest * 2 + kGap : widest;
     int y = kGap;
-    m_layout.reserve(n);
+    m_layout.reserve(twoUp ? n * 2 : n);
+    const ScViewMode single = m_session ? m_session->viewMode() : SC_VIEW_MODE_OVERLAY;
     for (int i = 0; i < n; i++) {
         const QSize s = sizes[i];
         // Sheets are centred on the widest one, so a set whose pages differ in
         // size does not jitter left and right as it scrolls.
-        const int x = kGap + (widest - s.width()) / 2;
-        m_layout.append({i + 1, QRect(QPoint(x, y), s)});
+        if (twoUp) {
+            const int lx = kGap + (widest - s.width()) / 2;
+            const int rx = kGap + widest + kGap + (widest - s.width()) / 2;
+            m_layout.append({i + 1, QRect(QPoint(lx, y), s), SC_VIEW_MODE_ONLY_A});
+            m_layout.append({i + 1, QRect(QPoint(rx, y), s), SC_VIEW_MODE_ONLY_B});
+        } else {
+            const int x = kGap + (widest - s.width()) / 2;
+            m_layout.append({i + 1, QRect(QPoint(x, y), s), single});
+        }
         y += s.height() + kGap;
     }
-    m_content = QSize(widest + 2 * kGap, y);
+    m_content = QSize(band + 2 * kGap, y);
 
     const QSize vp = viewport()->size();
     horizontalScrollBar()->setRange(0, qMax(0, m_content.width() - vp.width()));
@@ -96,7 +107,10 @@ void CompareView::applyFit() {
         return;
     }
     const QSize vp = viewport()->size();
-    const double usableW = qMax(1, vp.width() - 2 * kGap);
+    const bool twoUp = m_layout_mode == Layout::SideBySide;
+    // Two sheets and a gutter have to fit across, or fitting the width would
+    // put half the comparison off screen.
+    const double usableW = qMax(1, vp.width() - (twoUp ? 3 : 2) * kGap) / (twoUp ? 2.0 : 1.0);
     const double usableH = qMax(1, vp.height() - 2 * kGap);
     double z = usableW / pt.width();
     if (m_fit == Fit::Page) {
@@ -130,6 +144,23 @@ void CompareView::setZoom(double z, const QPoint &anchor) {
     verticalScrollBar()->setValue(after.y() - a.y());
     viewport()->update();
     emit zoomChanged(m_zoom);
+    emit currentPageChanged(currentPage());
+}
+
+void CompareView::setLayout(Layout l) {
+    if (l == m_layout_mode) {
+        return;
+    }
+    m_layout_mode = l;
+    m_tiles.clear();
+    // The sheets are a different size on screen now, so a fit has to be redone
+    // rather than kept; an explicit zoom is the reader's and stays.
+    if (m_fit != Fit::None) {
+        applyFit();
+    } else {
+        relayout();
+    }
+    viewport()->update();
     emit currentPageChanged(currentPage());
 }
 
@@ -180,6 +211,8 @@ void CompareView::goToPage(int page) {
 
 QRect CompareView::pageRectToContent(int page, const QRectF &pageRect) const {
     for (const Placed &p : m_layout) {
+        // The first entry for a sheet is the earlier revision, which is where a
+        // change is anchored; side by side leaves the later one alongside it.
         if (p.page != page) {
             continue;
         }
@@ -209,13 +242,17 @@ void CompareView::showRect(int page, const QRectF &pageRect) {
     emit currentPageChanged(currentPage());
 }
 
-const QImage &CompareView::tileAt(int page, const QRect &tile) {
-    const quint64 key = tileKey(page, tile.x() / kTile, tile.y() / kTile);
+const QImage &CompareView::tileAt(int page, const QRect &tile, ScViewMode mode) {
+    // The mode is part of the key: side by side keeps both documents' tiles for
+    // the same sheet at the same place, and without it they overwrite each
+    // other and the two panes show the same picture.
+    const quint64 key =
+        tileKey(page, tile.x() / kTile, tile.y() / kTile) ^ (quint64(mode) << 60);
     auto it = m_tiles.find(key);
     if (it != m_tiles.end()) {
         return it.value();
     }
-    QImage img = m_session ? m_session->tile(page, m_zoom, tile) : QImage();
+    QImage img = m_session ? m_session->tile(page, m_zoom, tile, mode) : QImage();
     if (img.isNull()) {
         if (m_blank.size() != tile.size()) {
             m_blank = QImage(tile.size(), QImage::Format_RGB32);
@@ -254,7 +291,7 @@ void CompareView::paintEvent(QPaintEvent *e) {
                 if (tile.isEmpty()) {
                     continue;
                 }
-                const QImage &img = tileAt(p.page, tile);
+                const QImage &img = tileAt(p.page, tile, p.mode);
                 g.drawImage(p.rect.topLeft() + tile.topLeft() - o, img);
             }
         }

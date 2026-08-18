@@ -63,10 +63,11 @@ impl ViewMode {
 /// reviewer goes to look closely: the old ceiling ran out precisely when it was
 /// needed most.
 ///
-/// The cost is bounded and was measured before the ceiling moved. Dilating an
-/// A4 sheet at 150 dpi takes 5.1 ms at radius 1 and 15.6 ms at radius 8 —
-/// sub-linear in the radius, because the pass is memory bound — against the
-/// tens of milliseconds MuPDF spends rendering the same sheet twice.
+/// The cost is bounded and was measured before the ceiling moved. On a real
+/// 21-sheet set a 512-pixel tile costs 8.7 ms at tolerance 1 and 11.0 ms at 8,
+/// so a viewport of a dozen goes from 105 ms to 135 ms. The dilation itself is
+/// sub-linear in the radius because the pass is memory bound: a whole A4 sheet
+/// at 150 dpi takes 5.1 ms at radius 1 and 15.6 ms at radius 8.
 pub const MAX_TOLERANCE: i32 = 8;
 
 /// Past this, the slack is wider than a small movement.

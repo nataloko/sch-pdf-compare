@@ -492,6 +492,88 @@ the viewport in each mode and asserts the three differ, and the same for the
 pairing shift; putting the bug back makes all four fail. **For anything the
 reader looks at, assert on what was drawn.**
 
+## Finding the change on a sheet that is mostly unchanged
+
+Everything above is about not reporting differences that are not there. This is
+the other half of the same job: on a real sheet the change is a handful of
+pixels and the sheet is not, and four controls came out of trying to find one by
+eye.
+
+**The tolerance ceiling moved from 3 to 8.** The old cap's reasoning was that
+more slack than 3 stops distinguishing a stroke that moved from one that was
+deleted, which is true and is why the default is still 1. What it missed is that
+the tolerance is in *device* pixels, so it shrinks against the drawing as the
+reader zooms in: a producer's fringe is about a pixel wide at 100% and about
+three at 300%, and 300% is exactly where a reviewer goes to read a component
+value. The ceiling ran out precisely when it was needed.
+
+The cost was measured first. A 512-pixel tile of a real sheet costs 8.7 ms at
+tolerance 1 and 11.0 ms at 8, so a viewport of a dozen goes from 105 ms to
+135 ms; the dilation is sub-linear in its radius because the pass is memory
+bound, and MuPDF's two renders dominate either way.
+
+The old reasoning survives as a **line rather than a ceiling**. `MAX_TOLERANCE`
+is 8, `TOLERANCE_HIDES_MOVEMENT` is 3, and above the second the status line, the
+print caption and the exported report each say that a stroke which only moved is
+no longer reported. Both numbers cross the ABI — `sc_max_tolerance()` and
+`sc_tolerance_hides_movement()` — rather than being written into the frontend,
+because a spin box that stops one short of what the core allows is a control
+that lies, and this ceiling has moved once already.
+
+Two things about the tolerance were broken and are worth recording. Nudging past
+the ceiling **threw away a finished sweep of 85 sheets** to arrive at the number
+it was already at, because setting it drops every scanned answer and nothing
+noticed that the value had not changed. And changing it at all left the sidebar
+empty until the reader found "Scan Every Sheet" for themselves — `sweep.rs` had
+said since it was written that "changing the tolerance mid-sweep restarts it",
+and the frontend had never honoured it. It now restarts, 400 ms after the last
+change so that clicking the spin box four times starts one sweep rather than
+four. That timer is not the idle timer the ground rules forbid: it fires once,
+because of something the reader did, and never polls.
+
+**Fading the drawing the two revisions agree on.** The composition rule splits
+each pixel into `shared = min(a, b)`, drawn neutral black, and the leftover on
+each side, drawn in that side's colour. `Options::shared_ink` scales the first
+of those and nothing else, from 100 to 0. At 0 the sheet is blank except for
+exactly what changed — the same trick as turning the room lights down to see one
+LED, and the reason it is a slider and not a switch is that stopping halfway
+keeps enough of the drawing to say *where* on the sheet the speck is.
+
+Three things follow from "and nothing else". It is not in the scan: what changed
+does not depend on how it is painted, and a reader who fades the drawing away
+must still be told the same number of sheets changed. It does not touch the two
+leftovers: fading the differences would be fading the answer. And only the
+overlay has anything to fade — a single revision is meant to look exactly like
+opening that file — so the control is switched off in every other view rather
+than left live and inert, which is what "clicking Only A does nothing" turned
+out to mean.
+
+**One sheet at a time is a flow, not a view mode.** A/B/overlay/side-by-side are
+one exclusive choice because they answer "what am I looking at". How much of the
+set the scroll runs through is a different question, and a reader wants one sheet
+of the overlay as readily as one sheet side by side. Putting it in that group
+would make choosing a single sheet switch the overlay off, which is the trap the
+group was made to close. In `SinglePage` the other sheets are not laid out at
+all, so nothing can scroll onto them and a fit to the page is a fit to *this*
+page; `PageDown` at the foot of the sheet is a deliberate step to the next one.
+It broke `showRect` on the way in — stepping to a change crosses sheets, and the
+sheet it was pointing at had not been laid out — which is the same class of bug
+as the layout that never rebuilt, and is tested the same way.
+
+**The toolbar has pictures now**, and the reason it did not is answered rather
+than forgotten. It said: there is no icon set that says "only the earlier
+revision", and a toolbar of guesses is worse than no toolbar. Both halves still
+hold of every icon theme there is — so these are drawn, in `Icons.cpp`, from the
+thing they stand for. The overlay button is a picture of the composition rule:
+A's colour, B's colour, and black where they overlap. The two revision buttons
+are sheets carrying the letter the rest of the window calls them by, in **the
+reader's own two overlay colours**, so a reviewer who moved them to blue and
+orange because red and green are the same colour to them is not left looking at
+a red button and a green one. Painted rather than themed for a plainer reason as
+well: there is no icon theme inside the AppImage and none on Windows, and a
+themed icon is a blank square on two of the three targets this ships to. The
+words stay next to the pictures.
+
 ## Windows
 
 The core cross-compiles to `x86_64-pc-windows-gnu` with the MinGW toolchain, and

@@ -20,7 +20,11 @@ customer material. The `samples/` directory stays out of the repository.
 
 - **An overlay with a tolerance in device pixels.** Two PDF producers can put
   the same line a fraction of a pixel apart. The tolerance prevents a full sheet
-  of colour.
+  of colour. The values are 0 to 8, and the toolbar has a control for them. A
+  large zoom makes the difference between the two producers wider on the screen.
+  Thus a larger value is necessary at a large zoom. Above 3 pixels, the software
+  does not report a line that only moved. The status line, the printed page and
+  the report give this warning.
 - **A view of one revision.** The `1`, `2` and `3` keys show revision A,
   revision B, and the overlay. The `Tab` key changes between the two revisions.
   The zoom and the position on the sheet do not move.
@@ -46,6 +50,12 @@ customer material. The `samples/` directory stays out of the repository.
   necessary when the two revisions come from different PDF producers. Text that
   only moved is counted, not listed, because a sheet with a new layout moves
   hundreds of labels and those rows conceal the few that read differently.
+- **A control that changes the content in the two revisions from black to
+  white.** The overlay shows this content in black. The **Fade** button and the
+  `F` key change it in four steps. The slider gives the values between the two
+  ends. The differences keep their colours. At the white end, the sheet shows
+  only the changes. Use this control when a sheet has much content and the
+  changes are small.
 - **A choice of the two overlay colours.** The usual pair is red and green. A
   reader with red-green colour blindness can select blue and orange, because all
   the information in the overlay is in these two colours.
@@ -54,6 +64,10 @@ customer material. The `samples/` directory stays out of the repository.
 - **A side-by-side view** with the `4` key. The two revisions have one zoom and
   one position. This helps you where the overlay puts two different texts on top
   of each other.
+- **A view of one sheet.** The `5` key shows one sheet only. The view then stops
+  at the bottom of the sheet. `PageDown` and `PageUp` move to the next sheet and
+  to the previous sheet. This view operates with the overlay, with one revision,
+  and with the side-by-side view.
 - **A print function** in the same orientation as the drawing. Each page gives
   the two file names, the view, the tolerance, and the regions that the software
   did not compare.

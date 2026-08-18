@@ -5,7 +5,16 @@ use std::time::Instant;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let a: Vec<String> = std::env::args().collect();
-    let s = Session::open(&a[1], &a[2])?;
+    let mut s = Session::open(&a[1], &a[2])?;
+    // An optional third argument, because the tolerance is the one option that
+    // costs anything: it is a dilation radius, and the ceiling was raised on
+    // the strength of what this prints.
+    if let Some(tol) = a.get(3).and_then(|t| t.parse().ok()) {
+        let mut o = s.options();
+        o.tolerance = tol;
+        s.set_options(o);
+    }
+    println!("tolerance {}", s.options().tolerance);
     for dpi in [96.0f32, 150.0, 300.0] {
         let zoom = dpi / 72.0;
         let (w, h) = s.page_device_size(2, zoom)?;

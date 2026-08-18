@@ -33,8 +33,13 @@ into `crates/sc-ffi/include/schcompare.h` and committed.
    a status to poll. No callbacks fired from a worker thread.
 5. **No idle timer in the event loop.** Qt watches the core's wakeup handle with
    `QSocketNotifier` / `QWinEventNotifier` and pumps only when it fires.
-6. **`samples/` is customer material and is never committed.** It is in
-   `.gitignore`; keep it there.
+6. **Customer material never enters the repository.** `samples/` is gitignored
+   and stays that way — but the rule is wider than that directory, and it has
+   already been broken once: a *rendered crop* of a customer schematic was
+   committed to `docs/` as a README illustration and had to be taken out again.
+   A picture of a drawing is the drawing. No screenshots, no crops, no test
+   fixtures derived from a real set. `git ls-files | grep -iE '\.png$|\.pdf$'`
+   should stay empty of anything that came from `samples/`.
 7. Comments explain *why*, including the alternative that was tried and failed.
    `docs/design.md` holds the decisions, `docs/history.md` the log.
 

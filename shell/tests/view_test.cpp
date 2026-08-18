@@ -32,6 +32,7 @@
 #include <QLabel>
 #include <QTest>
 #include <QScrollBar>
+#include <QSlider>
 #include <QSpinBox>
 #include <QToolBar>
 #include <QTreeWidget>
@@ -458,6 +459,100 @@ int main(int argc, char **argv) {
         check(view->layout() == CompareView::Layout::Single,
               QStringLiteral("and choosing a single view goes back to one sheet"));
         check(!sbs->isChecked(), QStringLiteral("and unchecks side by side"));
+    }
+
+    // Fading the drawing the two revisions agree on, until only the changes are
+    // left. The assertions are on the pixels: this is a control whose entire
+    // job is what the sheet looks like, and the status line saying "40%" would
+    // prove nothing about that.
+    {
+        auto *slider = win.findChild<QSlider *>(QStringLiteral("fadeSlider"));
+        auto *fade = win.findChild<QAction *>(QStringLiteral("fade"));
+        check(slider && fade, QStringLiteral("there is a control for the unchanged drawing"));
+
+        // Neutral dark ink is the drawing both revisions share; anything with
+        // chroma in it is a difference.
+        auto counts = [](const QImage &img, int *neutral, int *coloured) {
+            *neutral = 0;
+            *coloured = 0;
+            for (int y = 0; y < img.height(); y++) {
+                for (int x = 0; x < img.width(); x++) {
+                    const QColor c = img.pixelColor(x, y);
+                    const int lo = qMin(qMin(c.red(), c.green()), c.blue());
+                    const int hi = qMax(qMax(c.red(), c.green()), c.blue());
+                    if (hi - lo > 40) {
+                        (*coloured)++;
+                    } else if (lo < 128) {
+                        (*neutral)++;
+                    }
+                }
+            }
+        };
+        const QSize dev = s->pageDeviceSize(1, 1.0);
+        const QRect whole(QPoint(0, 0), dev);
+        int neutralFull = 0;
+        int colouredFull = 0;
+        counts(s->tile(1, 1.0, whole, SC_VIEW_MODE_OVERLAY), &neutralFull, &colouredFull);
+        check(neutralFull > 0 && colouredFull > 0,
+              QStringLiteral("the overlay starts with artwork and changes on it: %1 / %2")
+                  .arg(neutralFull)
+                  .arg(colouredFull));
+
+        slider->setValue(0);
+        QTest::qWait(50);
+        check(s->sharedInk() == 0, QStringLiteral("the slider empties the drawing"));
+        int neutralGone = 0;
+        int colouredGone = 0;
+        counts(s->tile(1, 1.0, whole, SC_VIEW_MODE_OVERLAY), &neutralGone, &colouredGone);
+        check(neutralGone * 20 < neutralFull,
+              QStringLiteral("the shared artwork goes: %1 of %2 left")
+                  .arg(neutralGone)
+                  .arg(neutralFull));
+        // Never fewer. It can be more: where a difference sat on top of ink
+        // both revisions drew, the pixel was dark enough to read as artwork
+        // and comes out plainly coloured once the artwork under it is gone.
+        // Which is the point of the control.
+        check(colouredGone >= colouredFull,
+              QStringLiteral("and no difference is faded with it: %1 against %2")
+                  .arg(colouredGone)
+                  .arg(colouredFull));
+        check(status->text().contains(QStringLiteral("unchanged drawing at 0%")),
+              QStringLiteral("and the window says why the sheet is empty: '%1'")
+                  .arg(status->text()));
+        shot(&win, QStringLiteral("faded"));
+
+        // The button is the one a reader uses: a quarter at a time, and from
+        // nothing back to the whole drawing.
+        fade->trigger();
+        QTest::qWait(20);
+        check(s->sharedInk() == 100, QStringLiteral("from nothing it comes back whole"));
+        fade->trigger();
+        QTest::qWait(20);
+        check(s->sharedInk() == 75, QStringLiteral("then a quarter at a time, got %1")
+                                        .arg(s->sharedInk()));
+        fade->trigger();
+        fade->trigger();
+        QTest::qWait(20);
+        check(s->sharedInk() == 25, QStringLiteral("and again, got %1").arg(s->sharedInk()));
+        check(slider->value() == 25, QStringLiteral("with the slider following the button"));
+
+        // It only means anything on the overlay, so it is not live anywhere
+        // else. A control that is enabled and does nothing is exactly the
+        // complaint that started all this.
+        win.findChild<QAction *>(QStringLiteral("onlyA"))->trigger();
+        QTest::qWait(20);
+        check(!slider->isEnabled() && !fade->isEnabled(),
+              QStringLiteral("a single revision has nothing to fade"));
+        win.findChild<QAction *>(QStringLiteral("sideBySide"))->setChecked(true);
+        QTest::qWait(20);
+        check(!slider->isEnabled(), QStringLiteral("nor has side by side"));
+        win.findChild<QAction *>(QStringLiteral("overlay"))->trigger();
+        QTest::qWait(20);
+        check(slider->isEnabled() && fade->isEnabled(),
+              QStringLiteral("and it comes back with the overlay"));
+
+        slider->setValue(100);
+        QTest::qWait(20);
     }
 
     // Tolerance, on the bar. It is the one setting that changes every answer

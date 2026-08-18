@@ -14,6 +14,7 @@ class QTimer;
 class QAction;
 class QActionGroup;
 class QCheckBox;
+class QSlider;
 class QSpinBox;
 class QTreeWidget;
 class Session;
@@ -59,6 +60,8 @@ class MainWindow : public QMainWindow {
     void nudgePairing(int by);
     void matchSheets();
     void nudgeTolerance(int by);
+    // Steps the unchanged drawing towards white and round again.
+    void stepFade();
     // The one path that changes the tolerance, whichever control asked.
     void changeTolerance(int to);
 
@@ -107,6 +110,7 @@ class MainWindow : public QMainWindow {
     QActionGroup *m_modeGroup = nullptr;
     // The toolbar's two settings, as opposed to its buttons.
     QSpinBox *m_toleranceBox = nullptr;
+    QSlider *m_fadeSlider = nullptr;
     // Sweeps the set again a moment after the tolerance settles; see
     // changeTolerance for why it waits.
     QTimer *m_rescan = nullptr;

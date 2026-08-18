@@ -22,6 +22,7 @@
 #include <QPrintDialog>
 #include <QPrinter>
 #include <QProgressDialog>
+#include <QSlider>
 #include <QSpinBox>
 #include <QTimer>
 #include <QMessageBox>
@@ -237,6 +238,13 @@ void MainWindow::buildMenus() {
     });
     col->setObjectName(QStringLiteral("overlayColours"));
     m_needSession.append(col);
+    // The other half of "make the change findable": the colours say what the
+    // difference is, this takes away everything that is not one.
+    QAction *fade = view->addAction(tr("Fade the &Unchanged Drawing"), this,
+                                    &MainWindow::stepFade);
+    fade->setObjectName(QStringLiteral("fade"));
+    fade->setShortcut(Qt::Key_F);
+    m_needSession.append(fade);
     view->addSeparator();
     QAction *zo = view->addAction(tr("Zoom &Out"), this,
                                   [this] { m_view->setZoom(m_view->zoom() / 1.25); });
@@ -317,6 +325,7 @@ void MainWindow::buildToolBar() {
     // in the reader's own two colours. Keeping the words next to them costs a
     // little width and settles the guessing the old comment was worried about.
     auto *bar = addToolBar(tr("Comparison"));
+    QAction *fadeAct = findChild<QAction *>(QStringLiteral("fade"));
     bar->setObjectName(QStringLiteral("toolbar"));
     bar->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
     bar->setMovable(false);
@@ -358,6 +367,45 @@ void MainWindow::buildToolBar() {
     bar->addWidget(m_toleranceBox);
     m_needSessionWidgets.append(tolLabel);
     m_needSessionWidgets.append(m_toleranceBox);
+
+    // Fading the drawing the two revisions agree on. Three small edits on a
+    // dense sheet are three specks of colour in a page of black line work, and
+    // no amount of staring finds them; take the agreed ink away and the sheet
+    // is blank except for exactly what changed.
+    //
+    // A button *and* a slider for one setting, which is usually a mistake and
+    // is not here: the button is the one a reader wants, four clicks from the
+    // drawing to nothing and back, and the slider is where they stop halfway
+    // because a speck of colour on an empty sheet does not say where on the
+    // sheet it is.
+    bar->addAction(fadeAct);
+    m_fadeSlider = new QSlider(Qt::Horizontal, bar);
+    m_fadeSlider->setObjectName(QStringLiteral("fadeSlider"));
+    m_fadeSlider->setRange(0, 100);
+    m_fadeSlider->setValue(100);
+    m_fadeSlider->setFixedWidth(90);
+    // The value lands when the handle is let go, not on every pixel of the
+    // drag. Each step re-renders both revisions of every tile on screen
+    // through MuPDF, and a hundred of those between one end and the other is a
+    // slider that stutters. The button covers the quick sweep; this is for
+    // stopping somewhere in particular.
+    m_fadeSlider->setTracking(false);
+    m_fadeSlider->setToolTip(
+        tr("How strongly to draw what the two revisions agree on.\n\n"
+           "Full is the drawing as it was drawn, with the changes coloured on "
+           "top of it. Turned down, the unchanged artwork fades towards white "
+           "and the differences stay exactly as they are — at nothing, the "
+           "sheet is blank except for what changed.\n\n"
+           "The overlay only; a single revision is shown as it is."));
+    bar->addWidget(m_fadeSlider);
+    m_needSessionWidgets.append(m_fadeSlider);
+    connect(m_fadeSlider, &QSlider::valueChanged, this, [this](int v) {
+        if (m_session) {
+            m_session->setSharedInk(v);
+            persist();
+            updateStatus();
+        }
+    });
     connect(m_toleranceBox, &QSpinBox::valueChanged, this, &MainWindow::changeTolerance);
 
     // Shorter words on the buttons than in the menu, because the menu has room
@@ -370,7 +418,7 @@ void MainWindow::buildToolBar() {
     };
     for (const Short &s : {Short{"open", tr("Open")}, Short{"prev", tr("Previous")},
                            Short{"next", tr("Next")}, Short{"excludeRegion", tr("Exclude")},
-                           Short{"singlePage", tr("One sheet")}}) {
+                           Short{"singlePage", tr("One sheet")}, Short{"fade", tr("Fade")}}) {
         if (QAction *a = findChild<QAction *>(QString::fromLatin1(s.name))) {
             a->setIconText(s.text);
         }
@@ -413,6 +461,7 @@ void MainWindow::refreshIcons() {
     set("prev", Icons::previousChange(look));
     set("next", Icons::nextChange(look));
     set("excludeRegion", Icons::excludeRegion(look));
+    set("fade", Icons::fadeShared(look));
 }
 
 void MainWindow::changeEvent(QEvent *e) {
@@ -759,6 +808,12 @@ void MainWindow::paintSheetForPrint(QPainter &g, QPrinter &printer, int sheet) {
         // it, and this changes what an unmarked part of the sheet means.
         line2 += tr(" — a stroke that only moved is not reported");
     }
+    if (m_session->viewMode() == SC_VIEW_MODE_OVERLAY && m_session->sharedInk() < 100) {
+        // Likewise, and more so: this one is why the sheet came out nearly
+        // empty, and nothing else on the page would say.
+        line2 += QStringLiteral("   ·   ") +
+                 tr("unchanged drawing faded to %1%").arg(m_session->sharedInk());
+    }
     const int n = m_session->changeCount(sheet);
     if (n >= 0) {
         line2 += QStringLiteral("   ·   ") +
@@ -887,6 +942,23 @@ void MainWindow::changeTolerance(int to) {
     }
     persist();
     m_rescan->start(400);
+}
+
+/// Steps the unchanged drawing a quarter of the way towards white, and from
+/// nothing back to the whole drawing.
+///
+/// A cycle rather than a one-way dimmer, because the reader is going to want
+/// the drawing back: the fade is for finding the change, and the circuit around
+/// it is for understanding the change once found.
+void MainWindow::stepFade() {
+    if (!m_session) {
+        return;
+    }
+    const int now = m_session->sharedInk();
+    const int next = now <= 0 ? 100 : qMax(0, ((now - 1) / 25) * 25);
+    // Through the slider, so there is one path to the setting and the slider
+    // cannot end up showing something other than what is drawn.
+    m_fadeSlider->setValue(next);
 }
 
 void MainWindow::onCurrentPageChanged(int page) {
@@ -1090,6 +1162,20 @@ void MainWindow::updateStatus() {
         const QSignalBlocker block(m_toleranceBox);
         m_toleranceBox->setValue(m_session->tolerance());
     }
+    // The fade has nothing to fade unless the overlay is what is on screen: a
+    // single revision is drawn exactly as it is, and side by side is two of
+    // those. A control that is live but does nothing is what "clicking Only A
+    // does nothing" turned out to mean, and it is not being repeated here.
+    const bool overlayIsOn = m_view->layout() != CompareView::Layout::SideBySide &&
+                             m_session->viewMode() == SC_VIEW_MODE_OVERLAY;
+    if (m_fadeSlider) {
+        const QSignalBlocker block(m_fadeSlider);
+        m_fadeSlider->setValue(m_session->sharedInk());
+        m_fadeSlider->setEnabled(overlayIsOn);
+    }
+    if (QAction *fade = findChild<QAction *>(QStringLiteral("fade"))) {
+        fade->setEnabled(overlayIsOn);
+    }
     if (m_view->regionArmed()) {
         m_status->setText(
             tr("Drag a rectangle over the part to leave out of the comparison.  "
@@ -1134,6 +1220,12 @@ void MainWindow::updateStatus() {
     // reading the counts it produced.
     if (m_session->tolerance() > Session::toleranceHidesMovement()) {
         text += tr("   ⚠ a stroke that only moved is not reported");
+    }
+    // Only when it is not the whole drawing. A reader who left this down and
+    // came back to a nearly blank sheet has to be able to find out why, and the
+    // slider is small.
+    if (overlayIsOn && m_session->sharedInk() < 100) {
+        text += tr("   unchanged drawing at %1%").arg(m_session->sharedInk());
     }
     if (m_session->pairingIsAutomatic()) {
         text += tr("   sheets matched by content");

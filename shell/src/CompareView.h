@@ -1,4 +1,5 @@
-// The viewport: a continuous scroll through the comparison's virtual sheets.
+// The viewport: the comparison's virtual sheets, either as one continuous
+// scroll or one sheet at a time.
 //
 // This is the part SumatraPDF used to provide. It lays every sheet out at the
 // current zoom, draws whatever of them is on screen from a tile cache, and
@@ -39,8 +40,25 @@ class CompareView : public QAbstractScrollArea {
     // is drawn twice on top of itself and neither reading is legible.
     enum class Layout { Single, SideBySide };
 
+    // How much of the set the scroll runs through.
+    //
+    // `Continuous` lays every sheet out in one column, which is right for
+    // reading a set the way it was drawn. `SinglePage` lays out only the sheet
+    // being read and stops there: the scroll cannot wander onto the next sheet,
+    // `PageDown` from the bottom is a deliberate step to it, and a fit to the
+    // page actually means the page.
+    //
+    // Orthogonal to `Layout` and to the view mode. A reader can be on one sheet
+    // at a time, side by side, at whichever tolerance — these are three
+    // different questions and combining them into one list of choices is how a
+    // control ends up switching off something unrelated.
+    enum class Flow { Continuous, SinglePage };
+
     Layout layout() const { return m_layout_mode; }
     void setLayout(Layout l);
+
+    Flow flow() const { return m_flow; }
+    void setFlow(Flow f);
 
     double zoom() const { return m_zoom; }
     void setZoom(double z, const QPoint &anchor = QPoint(-1, -1));
@@ -106,6 +124,11 @@ class CompareView : public QAbstractScrollArea {
     double m_zoom = 1.0;
     Fit m_fit = Fit::Width;
     Layout m_layout_mode = Layout::Single;
+    Flow m_flow = Flow::Continuous;
+    // The sheet on show, and the only one laid out, when the flow is
+    // `SinglePage`. Meaningless otherwise: `currentPage` works it out from the
+    // scroll position there.
+    int m_page = 1;
     QVector<Placed> m_layout;
     QSize m_content;
 

@@ -185,6 +185,21 @@ void MainWindow::buildMenus() {
         m_view->setLayout(on ? CompareView::Layout::SideBySide : CompareView::Layout::Single);
         updateStatus();
     });
+    // Deliberately *not* in that group. Which of the two revisions is on screen
+    // and how many sheets the scroll runs through are different questions, and
+    // a reader wants a single sheet of the overlay, or of the pair side by
+    // side, as readily as either on its own. Putting it in the group would make
+    // choosing one sheet switch the overlay off, which is the trap the group
+    // was built to close in the first place.
+    m_singlePageAct = view->addAction(tr("Single &Page"));
+    m_singlePageAct->setObjectName(QStringLiteral("singlePage"));
+    m_singlePageAct->setCheckable(true);
+    m_singlePageAct->setShortcut(Qt::Key_5);
+    m_needSession.append(m_singlePageAct);
+    connect(m_singlePageAct, &QAction::toggled, this, [this](bool on) {
+        m_view->setFlow(on ? CompareView::Flow::SinglePage : CompareView::Flow::Continuous);
+        updateStatus();
+    });
     view->addSeparator();
     QAction *fw = view->addAction(tr("Fit &Width"), this,
                                   [this] { m_view->setFit(CompareView::Fit::Width); });
@@ -296,6 +311,7 @@ void MainWindow::buildToolBar() {
     bar->addAction(m_onlyBAct);
     bar->addAction(m_overlayAct);
     bar->addAction(m_sideBySideAct);
+    bar->addAction(m_singlePageAct);
     bar->addSeparator();
     bar->addAction(findChild<QAction *>(QStringLiteral("prev")));
     bar->addAction(findChild<QAction *>(QStringLiteral("next")));
@@ -318,6 +334,7 @@ void MainWindow::showViewMenu(const QPoint &at) {
     m.addAction(m_onlyBAct);
     m.addAction(m_overlayAct);
     m.addAction(m_sideBySideAct);
+    m.addAction(m_singlePageAct);
     m.addSeparator();
     m.addAction(m_excludeRegion);
     m.addAction(findChild<QAction *>(QStringLiteral("clearRegions")));
@@ -958,6 +975,12 @@ void MainWindow::updateStatus() {
             mode = tr("Overlay");
             break;
         }
+    }
+    // Said here rather than in a field of its own, because it is the reason the
+    // scroll stops at the foot of the sheet and that question comes up while
+    // the reader is looking at the sheet, not at the status bar.
+    if (m_view->flow() == CompareView::Flow::SinglePage) {
+        mode += tr(", one sheet");
     }
 
     QString text = tr("Sheet %1 of %2   %3   %4%   tolerance %5")

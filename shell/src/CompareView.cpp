@@ -35,6 +35,7 @@ CompareView::CompareView(QWidget *parent) : QAbstractScrollArea(parent) {
 void CompareView::setSession(Session *s) {
     m_session = s;
     m_tiles.clear();
+    m_page = 1;
     m_fit = Fit::Width;
     applyFit();
     verticalScrollBar()->setValue(0);
@@ -85,10 +86,20 @@ void CompareView::relayout() {
         return;
     }
     const int n = m_session->pageCount();
+    // Which sheets get placed at all. One sheet at a time is not a scroll that
+    // stops early: the other sheets are not laid out, so nothing can scroll on
+    // to them and a fit to the page is a fit to this page.
+    int first = 1;
+    int last = n;
+    if (m_flow == Flow::SinglePage) {
+        m_page = qBound(1, m_page, qMax(1, n));
+        first = m_page;
+        last = m_page;
+    }
     int widest = 0;
     QVector<QSize> sizes;
-    sizes.reserve(n);
-    for (int p = 1; p <= n; p++) {
+    sizes.reserve(last - first + 1);
+    for (int p = first; p <= last; p++) {
         const QSize s = m_session->pageDeviceSize(p, m_zoom);
         sizes.append(s);
         widest = qMax(widest, s.width());
@@ -97,20 +108,21 @@ void CompareView::relayout() {
     // Side by side needs room for two of the widest sheet and a gutter between.
     const int band = twoUp ? widest * 2 + kGap : widest;
     int y = kGap;
-    m_layout.reserve(twoUp ? n * 2 : n);
+    m_layout.reserve(twoUp ? sizes.size() * 2 : sizes.size());
     const ScViewMode single = m_session ? m_session->viewMode() : SC_VIEW_MODE_OVERLAY;
-    for (int i = 0; i < n; i++) {
+    for (int i = 0; i < sizes.size(); i++) {
+        const int page = first + i;
         const QSize s = sizes[i];
         // Sheets are centred on the widest one, so a set whose pages differ in
         // size does not jitter left and right as it scrolls.
         if (twoUp) {
             const int lx = kGap + (widest - s.width()) / 2;
             const int rx = kGap + widest + kGap + (widest - s.width()) / 2;
-            m_layout.append({i + 1, QRect(QPoint(lx, y), s), SC_VIEW_MODE_ONLY_A});
-            m_layout.append({i + 1, QRect(QPoint(rx, y), s), SC_VIEW_MODE_ONLY_B});
+            m_layout.append({page, QRect(QPoint(lx, y), s), SC_VIEW_MODE_ONLY_A});
+            m_layout.append({page, QRect(QPoint(rx, y), s), SC_VIEW_MODE_ONLY_B});
         } else {
             const int x = kGap + (widest - s.width()) / 2;
-            m_layout.append({i + 1, QRect(QPoint(x, y), s), single});
+            m_layout.append({page, QRect(QPoint(x, y), s), single});
         }
         y += s.height() + kGap;
     }
@@ -195,6 +207,30 @@ void CompareView::setLayout(Layout l) {
     emit currentPageChanged(currentPage());
 }
 
+void CompareView::setFlow(Flow f) {
+    if (f == m_flow) {
+        return;
+    }
+    // Whichever sheet the reader was looking at is the one they keep. Read out
+    // before the flow changes, because `currentPage` answers differently on
+    // either side of it.
+    const int was = currentPage();
+    m_flow = f;
+    m_page = qMax(1, was);
+    if (m_fit != Fit::None) {
+        applyFit();
+    } else {
+        relayout();
+    }
+    if (f == Flow::SinglePage) {
+        verticalScrollBar()->setValue(0);
+    } else {
+        goToPage(m_page);
+    }
+    viewport()->update();
+    emit currentPageChanged(currentPage());
+}
+
 void CompareView::setFit(Fit f) {
     m_fit = f;
     applyFit();
@@ -202,17 +238,25 @@ void CompareView::setFit(Fit f) {
 }
 
 QPoint CompareView::contentOrigin() const {
-    // When the content is narrower than the viewport it is centred rather than
-    // left-aligned; a single A4 sheet pinned to the left edge of a wide window
-    // looks like a bug.
-    const int extra = viewport()->width() - m_content.width();
-    const int x = extra > 0 ? -extra / 2 : horizontalScrollBar()->value();
-    return QPoint(x, verticalScrollBar()->value());
+    // When the content is smaller than the viewport it is centred rather than
+    // pinned to a corner; a single A4 sheet against the top-left of a wide
+    // window looks like a bug. Vertically this only ever applies to a sheet
+    // with nothing above or below it — which is precisely the single-page
+    // flow, where the alternative was a band of grey under the sheet that read
+    // as a layout that had gone wrong.
+    const int extraX = viewport()->width() - m_content.width();
+    const int extraY = viewport()->height() - m_content.height();
+    const int x = extraX > 0 ? -extraX / 2 : horizontalScrollBar()->value();
+    const int y = extraY > 0 ? -extraY / 2 : verticalScrollBar()->value();
+    return QPoint(x, y);
 }
 
 int CompareView::currentPage() const {
     if (m_layout.isEmpty()) {
         return 0;
+    }
+    if (m_flow == Flow::SinglePage) {
+        return m_page;
     }
     const QPoint o = contentOrigin();
     const QRect vis(o, viewport()->size());
@@ -230,6 +274,24 @@ int CompareView::currentPage() const {
 }
 
 void CompareView::goToPage(int page) {
+    if (m_flow == Flow::SinglePage) {
+        const int n = m_session ? m_session->pageCount() : 0;
+        page = qBound(1, page, qMax(1, n));
+        if (page != m_page) {
+            m_page = page;
+            // The sheets can differ in size, so a fit belongs to the sheet it
+            // was worked out for. The tiles are keyed by page and survive.
+            if (m_fit != Fit::None) {
+                applyFit();
+            } else {
+                relayout();
+            }
+        }
+        verticalScrollBar()->setValue(0);
+        viewport()->update();
+        emit currentPageChanged(currentPage());
+        return;
+    }
     for (const Placed &p : m_layout) {
         if (p.page == page) {
             verticalScrollBar()->setValue(p.rect.top() - kGap);
@@ -256,6 +318,13 @@ QRect CompareView::pageRectToContent(int page, const QRectF &pageRect) const {
 }
 
 void CompareView::showRect(int page, const QRectF &pageRect) {
+    // Stepping through the changes crosses sheets, and one sheet at a time
+    // means the next one is not laid out yet. Without this, `Ctrl+.` walked off
+    // the end of the sheet and then did nothing at all — the change was found,
+    // there was simply nowhere on screen to point at.
+    if (m_flow == Flow::SinglePage && page != m_page) {
+        goToPage(page);
+    }
     const QRect target = pageRectToContent(page, pageRect);
     if (target.isNull()) {
         return;
@@ -364,6 +433,27 @@ void CompareView::keyPressEvent(QKeyEvent *e) {
         disarm();
         e->accept();
         return;
+    }
+    // One sheet at a time still has to be readable with one hand. `PageDown`
+    // scrolls down this sheet, and only once there is no more of it does it
+    // step to the next — which is what every document reader does and what the
+    // key is for. Coming back lands at the foot of the previous sheet, because
+    // that is where the reader was.
+    if (m_flow == Flow::SinglePage &&
+        (e->key() == Qt::Key_PageDown || e->key() == Qt::Key_PageUp)) {
+        const bool forward = e->key() == Qt::Key_PageDown;
+        QScrollBar *sb = verticalScrollBar();
+        const bool atEnd = forward ? sb->value() >= sb->maximum() : sb->value() <= sb->minimum();
+        const int want = m_page + (forward ? 1 : -1);
+        const int n = m_session ? m_session->pageCount() : 0;
+        if (atEnd && want >= 1 && want <= n) {
+            goToPage(want);
+            if (!forward) {
+                verticalScrollBar()->setValue(verticalScrollBar()->maximum());
+            }
+            e->accept();
+            return;
+        }
     }
     QAbstractScrollArea::keyPressEvent(e);
 }

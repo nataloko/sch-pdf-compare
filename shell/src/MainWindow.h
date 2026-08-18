@@ -95,6 +95,7 @@ class MainWindow : public QMainWindow {
     QAction *m_onlyAAct = nullptr;
     QAction *m_onlyBAct = nullptr;
     QAction *m_sideBySideAct = nullptr;
+    QAction *m_singlePageAct = nullptr;
     QActionGroup *m_modeGroup = nullptr;
     // Actions that need a comparison; see enableSessionActions.
     QVector<QAction *> m_needSession;

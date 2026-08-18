@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Two sheets of a drawing, one behind the other, and the overlay's own two
+     colours on the wires that differ. Red for the earlier revision, green for
+     the later one — the same meaning they carry in the application. -->
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256">
+  <rect width="256" height="256" rx="28" fill="#f4f4f2"/>
+
+  <!-- the earlier sheet, behind -->
+  <g transform="translate(30,26)">
+    <rect width="150" height="196" rx="4" fill="#ffffff" stroke="#9aa0a6" stroke-width="3"/>
+  </g>
+
+  <!-- the later sheet, in front, with a drawing on it -->
+  <g transform="translate(62,44)">
+    <rect width="160" height="186" rx="4" fill="#ffffff" stroke="#4a4f55" stroke-width="4"/>
+    <!-- the frame every schematic sheet carries -->
+    <rect x="10" y="10" width="140" height="166" fill="none" stroke="#c8ccd0" stroke-width="2"/>
+    <!-- unchanged wiring, in black -->
+    <g stroke="#2b2f33" stroke-width="4" stroke-linecap="square" fill="none">
+      <path d="M22 44 h44 v34 h40"/>
+      <path d="M22 118 h34"/>
+      <path d="M96 118 h42 v28"/>
+      <rect x="56" y="106" width="40" height="24" stroke-width="4"/>
+    </g>
+    <!-- what only the earlier revision had -->
+    <g stroke="#d81010" stroke-width="5" stroke-linecap="square" fill="none">
+      <path d="M22 78 h34 v40"/>
+    </g>
+    <!-- what only the later revision has -->
+    <g stroke="#009628" stroke-width="5" stroke-linecap="square" fill="none">
+      <path d="M106 44 h32 v74"/>
+    </g>
+  </g>
+</svg>

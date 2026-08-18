@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=sch-pdf-compare
+GenericName=Schematic Revision Comparison
+Comment=Compare two revisions of an electronics schematic PDF
+Exec=sch-pdf-compare %f
+Icon=sch-pdf-compare
+Terminal=false
+Categories=Graphics;Engineering;Viewer;
+MimeType=application/pdf;
+Keywords=schematic;PDF;compare;diff;revision;drawing;

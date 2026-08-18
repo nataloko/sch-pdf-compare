@@ -200,12 +200,24 @@ int main(int argc, char **argv) {
     check(view->currentPage() == pageBefore && qFuzzyCompare(view->zoom(), zoomBefore),
           QStringLiteral("A only does not move the view"));
     shot(&win, QStringLiteral("only-a"));
+    const QImage drawnA = view->viewport()->grab().toImage();
     win.findChild<QAction *>(QStringLiteral("onlyB"))->trigger();
     QTest::qWait(20);
     check(status->text().contains(QStringLiteral("B only")), QStringLiteral("B only"));
     shot(&win, QStringLiteral("only-b"));
+    const QImage drawnB = view->viewport()->grab().toImage();
     win.findChild<QAction *>(QStringLiteral("overlay"))->trigger();
     QTest::qWait(20);
+    const QImage drawnOverlay = view->viewport()->grab().toImage();
+
+    // The pixels, not the status line. This check is here because its absence
+    // shipped: the mode was set, the cache was emptied and the status line read
+    // "A only", while the viewport went on drawing the overlay, because the
+    // layout that carries which document each sheet shows was never rebuilt.
+    // Asserting on the words the window says about itself proved nothing.
+    check(drawnA != drawnOverlay, QStringLiteral("A only really draws something else"));
+    check(drawnB != drawnOverlay, QStringLiteral("B only really draws something else"));
+    check(drawnA != drawnB, QStringLiteral("and the two revisions differ from each other"));
 
     // The finished sweep should have spotted the title block and be offering
     // it — offering, with the menu item enabled, not applying it.
@@ -252,10 +264,16 @@ int main(int argc, char **argv) {
     QTest::qWait(20);
 
     // Nudging the pairing changes which sheets face each other.
+    const QImage drawnPaired = view->viewport()->grab().toImage();
     win.findChild<QAction *>(QStringLiteral("shiftRight"))->trigger();
-    QTest::qWait(20);
+    QTest::qWait(50);
     check(s->pageDelta() == 1, QStringLiteral("pairing shifted"));
     check(s->pair(1).first == 0, QStringLiteral("and sheet 1 of A now has no counterpart"));
+    // Same reason as the view modes: the page count and what each sheet shows
+    // both live in the layout, so a shift that is not drawn is a shift that did
+    // not happen as far as the reader is concerned.
+    check(view->viewport()->grab().toImage() != drawnPaired,
+          QStringLiteral("and the viewport draws the shift"));
     win.findChild<QAction *>(QStringLiteral("shiftLeft"))->trigger();
     QTest::qWait(20);
     check(s->pageDelta() == 0, QStringLiteral("and shifts back"));

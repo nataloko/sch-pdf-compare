@@ -62,6 +62,17 @@ void CompareView::disarm() {
 
 void CompareView::invalidate() {
     m_tiles.clear();
+    // The layout, not just the tiles. Each placed sheet carries which document
+    // it shows and how big it is, and both are settled here: switching to
+    // A-only changes the first, shifting the pairing changes the page count and
+    // so the second. Repainting without rebuilding it drew the old answer from
+    // a correctly emptied cache — the status line said "A only" over an overlay,
+    // for as long as this method did not do this.
+    if (m_fit != Fit::None) {
+        applyFit();
+    } else {
+        relayout();
+    }
     viewport()->update();
 }
 

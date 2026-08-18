@@ -4,12 +4,21 @@
 //! cache. The shell asks this for tiles and for answers; it does no thinking of
 //! its own.
 
-#![forbid(unsafe_code)]
+// `deny` rather than `forbid` so exactly one module can opt out: `wakeup` has
+// to make the four syscalls that give the frontend something to watch, and
+// there is no safe spelling of them. Everything else here stays safe, and an
+// `unsafe` block anywhere but that module is a compile error.
+#![deny(unsafe_code)]
 
 mod scan;
+mod sweep;
 mod tile;
+#[allow(unsafe_code)]
+mod wakeup;
 
 pub use scan::{SheetChanges, SCAN_DPI};
+pub use sweep::{suggest_ignores, Sweep, SweepStatus};
+pub use wakeup::WakeupHandle;
 
 use sc_diff::{Options, Pair, Pairing, RectF, ViewMode};
 use sc_render::{Document, Error, Result};

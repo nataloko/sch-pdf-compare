@@ -9,3 +9,12 @@ repository.workspace = true
 sc-diff.workspace = true
 sc-match.workspace = true
 sc-render.workspace = true
+
+# The sweep hands the frontend the platform's own wakeup object so its event
+# loop can watch it, rather than calling back from a worker thread onto code
+# that wants to open a dialog. These are the two calls that takes.
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_Security", "Win32_System_Threading"] }

@@ -20,7 +20,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         let tiles = t0.elapsed();
         println!(
             "{dpi:5.0} dpi  page {w}x{h}: whole {:?}, {n} tiles of 512 {:?} ({:?} each)",
-            whole, tiles, tiles / n as u32
+            whole,
+            tiles,
+            tiles / n as u32
         );
     }
     Ok(())

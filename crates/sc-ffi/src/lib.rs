@@ -131,7 +131,12 @@ pub struct ScRectF {
 
 impl From<RectF> for ScRectF {
     fn from(r: RectF) -> Self {
-        Self { x: r.x, y: r.y, dx: r.dx, dy: r.dy }
+        Self {
+            x: r.x,
+            y: r.y,
+            dx: r.dx,
+            dy: r.dy,
+        }
     }
 }
 
@@ -232,7 +237,10 @@ pub unsafe extern "C" fn sc_session_pair(s: *const ScSession, page_no: i32) -> S
     match s.as_ref() {
         Some(s) => {
             let p = s.inner.pair(page_no);
-            ScPair { page_a: p.page_a, page_b: p.page_b }
+            ScPair {
+                page_a: p.page_a,
+                page_b: p.page_b,
+            }
         }
         None => ScPair::default(),
     }
@@ -313,7 +321,10 @@ pub unsafe extern "C" fn sc_session_tile(
     let (Some(s), false) = (s.as_mut(), out.is_null()) else {
         return invalid("a live session and a writable tile are required");
     };
-    match s.inner.compose_tile(page_no, zoom, RenderTile::new(x, y, width, height)) {
+    match s
+        .inner
+        .compose_tile(page_no, zoom, RenderTile::new(x, y, width, height))
+    {
         Ok(tile) => {
             let t = s.last_tile.insert(tile);
             *out = ScTile {

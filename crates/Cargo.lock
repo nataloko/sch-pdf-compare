@@ -472,9 +472,11 @@ dependencies = [
 name = "sc-session"
 version = "0.1.0"
 dependencies = [
+ "libc",
  "sc-diff",
  "sc-match",
  "sc-render",
+ "windows-sys",
 ]
 
 [[package]]

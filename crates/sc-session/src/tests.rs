@@ -19,6 +19,8 @@ fn sample(name: &str) -> Option<String> {
 const A10: &str = "SET-ONE - EXAMPLE DIGITAL REV-P1.pdf";
 const B03: &str = "SET-ONE - EXAMPLE DIGITAL REV-P2.pdf";
 const D02: &str = "SET-ONE - EXAMPLE DIGITAL REV-P3.pdf";
+const SECOND_A07: &str = "SET-TWO - EXAMPLE SECOND REV-Q1.pdf";
+const SECOND_B02: &str = "SET-TWO - EXAMPLE SECOND REV-Q2.pdf";
 
 fn session(a: &str, b: &str) -> Option<Session> {
     let (pa, pb) = (sample(a)?, sample(b)?);
@@ -249,4 +251,113 @@ fn the_overlay_colours_something_these_revisions_disagree_about() {
         n > 100,
         "sheet 2 has six changes on it; the overlay showed {n} coloured pixels"
     );
+}
+
+#[test]
+fn the_sweep_finishes_and_agrees_with_scanning_by_hand() {
+    // The whole point of the sweep is that it is the same answer, arrived at
+    // without making the reader wait. If it ever disagrees with `scan_page`,
+    // the number in the sidebar is a lie.
+    let Some(s) = session(A10, B03) else { return };
+    let mut sweep = s.start_sweep().expect("the platform gives us a wakeup");
+
+    let mut collected: Vec<SheetChanges> = Vec::new();
+    // Poll rather than block: this stands in for the frontend's event loop,
+    // which wakes on the handle and reads the status.
+    for _ in 0..600 {
+        collected.extend(sweep.take_results());
+        if sweep.status().finished {
+            break;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(20));
+    }
+    collected.extend(sweep.take_results());
+
+    let st = sweep.status();
+    assert!(st.finished, "the sweep finished");
+    assert!(!st.running, "and says it is no longer running");
+    assert_eq!(st.total, 21);
+    assert_eq!(st.scanned, 21);
+    assert_eq!(
+        st.changed_sheets, 21,
+        "this set's title block changed on every sheet"
+    );
+    assert_eq!(
+        collected.len(),
+        21,
+        "and every sheet came back exactly once"
+    );
+
+    for r in &collected {
+        let by_hand = s.scan_page(r.page_no).expect("scans");
+        assert_eq!(
+            r.changes.len(),
+            by_hand.changes.len(),
+            "sheet {} disagrees with a hand scan",
+            r.page_no
+        );
+    }
+    sweep.stop();
+}
+
+#[test]
+fn a_sweep_can_be_stopped_before_it_finishes() {
+    let Some(s) = session(A10, B03) else { return };
+    let mut sweep = s.start_sweep().expect("starts");
+    sweep.stop();
+    // `stop` joins, so by the time it returns the thread is gone and nothing is
+    // still holding a document open behind our back.
+    assert!(!sweep.status().running);
+}
+
+#[test]
+fn the_repeat_detector_finds_the_title_block_on_both_sets() {
+    // Both sample sets share a title block whose date changed, so both should
+    // be offered it — and the offer must land on the bottom-right of the sheet.
+    for (a, b) in [(A10, B03), (SECOND_A07, SECOND_B02)] {
+        let Some(s) = session(a, b) else { return };
+        let all: Vec<_> = (1..=s.page_count())
+            .map(|p| s.scan_page(p).expect("scans"))
+            .collect();
+        let offered = suggest_ignores(&all, s.page_count());
+        assert!(
+            !offered.is_empty(),
+            "{a}: a change on every sheet should be offered"
+        );
+
+        let (w, h) = s.page_size(1).expect("has a sheet 1");
+        assert!(
+            offered.iter().any(|r| r.x > w * 0.5 && r.y > h * 0.8),
+            "{a}: the offer should be the title block, got {offered:?}"
+        );
+
+        // Offered, never applied. Nothing is excluded until the reader says so,
+        // because a net renamed across the whole set looks exactly like this and
+        // hiding that is the worst thing this tool could do.
+        assert!(
+            s.ignore_rects().is_empty(),
+            "suggesting must not exclude anything"
+        );
+        assert_eq!(s.scan_page(1).expect("scans").ignored, 0);
+    }
+}
+
+#[test]
+fn nothing_is_offered_when_nothing_repeats() {
+    // A document against itself has no changes at all, so there is nothing to
+    // suggest — and a detector that offered something here would be inventing.
+    let Some(s) = session(A10, A10) else { return };
+    let all: Vec<_> = (1..=s.page_count())
+        .map(|p| s.scan_page(p).expect("scans"))
+        .collect();
+    assert!(suggest_ignores(&all, s.page_count()).is_empty());
+}
+
+#[test]
+fn a_partial_sweep_offers_nothing() {
+    // Suggesting from half a sweep would offer to hide whatever happened to be
+    // scanned first, which is not the same question at all.
+    let Some(s) = session(A10, B03) else { return };
+    let few: Vec<_> = (1..=5).map(|p| s.scan_page(p).expect("scans")).collect();
+    assert!(suggest_ignores(&few, s.page_count()).is_empty());
 }

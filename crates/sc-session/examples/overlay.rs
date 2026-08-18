@@ -31,6 +31,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     }
     let found = s.scan_page(page)?;
-    eprintln!("sheet {page}: {} changes, {} px", found.changes.len(), found.pixels);
+    eprintln!(
+        "sheet {page}: {} changes, {} px",
+        found.changes.len(),
+        found.pixels
+    );
     Ok(())
 }

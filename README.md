@@ -1,82 +1,92 @@
 # sch-pdf-compare
 
-Compare two revisions of an electronics schematic PDF and see what changed.
+This software compares two revisions of an electronics schematic in PDF format
+and shows the differences.
 
-Built for the case a general PDF diff handles badly: 21- to 85-sheet A4 drawing
-sets where a changed resistor value is a handful of pixels, the two revisions
-came out of different PDF producers, and every sheet shares a title block whose
-date moved.
+A general PDF tool is not sufficient for this task. A drawing set contains 21 to
+85 sheets of A4. A resistor value that changed is only a small number of pixels.
+The two revisions usually come from different PDF producers. All the sheets
+contain the same title block, and the date in it changes with each revision.
 
-Content only in the earlier revision is red, only in the later one green, shared
-artwork black, paper white — so a re-routed net reads at a glance.
+In the overlay, the content that is only in the previous revision is red. The
+content that is only in the new revision is green. The content in the two
+revisions is black, and the paper is white. Thus you can quickly find a net that
+has a new route.
 
-(No screenshot here on purpose: every drawing this has been run against is
-customer material. `samples/` is gitignored and stays that way.)
+This file does not contain an example image. All the drawings for the tests are
+customer material. The `samples/` directory stays out of the repository.
 
-## What it does
+## What the software does
 
-- **Overlay** with a **tolerance** in device pixels, so two exporters that
-  rasterise the same stroke a fraction of a pixel apart do not paint the sheet
-  red. This is the single thing that makes cross-producer comparison usable.
-- **A only / B only / overlay** on `1` / `2` / `3`, and `Tab` to flip between the
-  documents as a blink comparator. The zoom and scroll never move.
-- **Change navigation** — `Ctrl+.` and `Ctrl+,` step through changes in reading
-  order, crossing sheets, without disturbing the zoom.
-- **A changed-sheet list** with a count per sheet; click one to go there.
-- **Excluded regions** — `Ctrl+drag` a rectangle to take the title block out of
-  the comparison on every sheet. Excluded artwork is drawn washed out inside a
-  dashed border and counted in the status line, because "not compared" must
-  never look like "nothing changed here".
-- **Sheet pairing**, two ways. `Alt+Shift+←/→` nudges a uniform offset when a
-  revision inserted a sheet at the front; **Match Sheets by Content** works out
-  the pairing from what is written on them, for a set that was reordered.
-  Unmatched sheets are marked added or removed.
-- **A text panel** saying what the sheet *reads* differently — `10k → 12k`,
-  `NET_A → NET_B` — not only where it looks different. This is what makes
-  a comparison across two different PDF producers usable at all: see below.
-- **A background sweep** that scans the whole set the moment it opens, so the
-  question "which sheets changed" is answered without waiting.
-- **Side by side** on `4`, sharing one scroll and one zoom — for where the
-  overlay is at its worst, drawing two readings of changed text on top of each
-  other.
-- **Printing**, turned to match the drawing, each page captioned with the two
-  files, the view, the tolerance and any excluded regions.
-- **A change report** — File ▸ Export Change Report — writing the whole
-  comparison as Markdown, sheet by sheet, with the text changes as a table.
-  A review's output is not a window; it is the list somebody else has to read.
-- **Excluded regions remembered per document pair**, so working out where a
-  set's title block sits is done once rather than every session.
-- **Repeat detection** that spots a title block changing on every sheet and
-  *offers* to exclude it. It never applies it: a net renamed across the whole
-  set looks exactly the same, and hiding that is the worst thing this could do.
+- **An overlay with a tolerance in device pixels.** Two PDF producers can put
+  the same line a fraction of a pixel apart. The tolerance prevents a full sheet
+  of colour.
+- **A view of one revision.** The `1`, `2` and `3` keys show revision A,
+  revision B, and the overlay. The `Tab` key changes between the two revisions.
+  The zoom and the position on the sheet do not move.
+- **Movement between the changes.** `Ctrl+.` goes to the next change and
+  `Ctrl+,` goes to the previous change. The movement continues on to the other
+  sheets and does not change the zoom.
+- **A list of the sheets that changed**, with a count for each sheet. You can
+  select a sheet in the list to go to it.
+- **Regions that the software does not compare.** Hold `Ctrl` and move the
+  pointer to make a rectangle around the title block. The software then ignores
+  that region on all the sheets. It shows the artwork in the region with less
+  ink, inside a dashed border, and gives a count in the status line. Thus a
+  region that the software did not compare does not look like a region with no
+  changes.
+- **Two methods to pair the sheets.** `Alt+Shift+←/→` moves the pairing by one
+  sheet. The **Match Sheets by Content** command finds the pairs from the text on
+  the sheets. The software identifies a sheet that has no pair as an added sheet
+  or a removed sheet.
+- **A panel that shows the text differences**, for example `10k → 12k`. This is
+  necessary when the two revisions come from different PDF producers.
+- **A background scan** of all the sheets when the software opens the two files.
+  Thus you do not wait to know which sheets changed.
+- **A side-by-side view** with the `4` key. The two revisions have one zoom and
+  one position. This helps you where the overlay puts two different texts on top
+  of each other.
+- **A print function** in the same orientation as the drawing. Each page gives
+  the two file names, the view, the tolerance, and the regions that the software
+  did not compare.
+- **A change report** from **File ▸ Export Change Report**. The report is a
+  Markdown file with one section for each sheet and a table of the text changes.
+- **A record of the regions to ignore, for each pair of files.** Thus you find
+  the title block one time only.
+- **Detection of the regions that change on all the sheets.** The software gives
+  these regions to you but does not apply them. A net name that changed on all
+  the sheets looks the same, and the software must not remove it from the view.
 
-## Two revisions, two different PDF producers
+## Two revisions from different PDF producers
 
-The awkward case, and the one that drove the design. One sheet of a real drawing
-set, compared against the revision two later — which went through a different
-PDF producer:
+This condition controlled the design. The table gives the results for one sheet
+of a drawing set. The software compared this sheet with the revision two steps
+after it, which came from a different PDF producer.
 
-| | regions reported |
+| | regions found |
 | --- | --- |
 | pixels, no tolerance | 29 |
 | pixels, 1 px tolerance | 26 |
-| **words** | **2** |
+| **text** | **2** |
 
-The two are the revision letter and the date. The other twenty-four are glyph
-rasterisation: one file draws its text with CID TrueType fonts where the other
-uses subset Type1C, so every character differs slightly everywhere there is
-writing. Probing every offset within ±3 pixels never gets below 14 regions and
-finds no minimum, so it is not a misaligned page and no alignment will fix it.
+The two text changes are the revision letter and the date. The other 24 regions
+are only differences in the shapes of the characters. One file has CID TrueType
+fonts, and the other file has subset Type1C fonts.
 
-Comparing what the text *says* sidesteps the whole problem for the part of a
-schematic that is writing, while the overlay still catches the re-routed wire
-that carries no text at all. Both panels, side by side, because the two
-questions are different.
+The software examined all the offsets in a range of 3 pixels in each direction.
+The number of regions did not decrease to less than 14, and there was no
+minimum. Thus the two sheets are aligned correctly, and an alignment procedure
+cannot correct this condition.
 
-## Building
+When the software compares the text, this problem does not occur for the part of
+the schematic that is text. The overlay also finds a wire that has a new route
+and no text. The two panels give different information, thus the software shows
+the two panels together.
 
-Qt 6.4 or newer, a Rust toolchain, CMake and Ninja. MuPDF builds from source as
-part of `cargo`, so the first build takes a few minutes.
+## How to build the software
+
+Qt 6.4 or a newer version, a Rust toolchain, CMake and Ninja are necessary.
+Cargo makes MuPDF from its source code, thus the first build takes some minutes.
 
 ```sh
 cmake -S shell -B shell/build -G Ninja
@@ -84,22 +94,25 @@ cmake --build shell/build
 ./shell/build/sch-pdf-compare earlier.pdf later.pdf
 ```
 
-CMake drives cargo, so that is the whole build.
+CMake controls Cargo, thus these commands make all the parts.
 
-On Windows the same command works, with the official Qt for Windows in either
-flavour the installer offers — nothing about this project needs MinGW.
-`packaging/windows/build-core.sh` additionally cross-builds the core from Linux
-and checks it under Wine; cross-building the *shell* from Linux is the one case
-that wants a MinGW Qt 6, because Qt's own build tools have to run on the build
+The same commands operate on Windows with the official Qt for Windows. The Qt
+installer gives two versions, and this project can use each one. MinGW is not
+necessary for this project.
+
+`packaging/windows/build-core.sh` also makes the core for Windows on a Linux
+machine and does a test of it with Wine. Only a cross-build of the shell on a
+Linux machine must have a MinGW Qt 6, because the Qt tools operate on the build
 machine.
 
 ## Layout
 
-A Rust core does all the thinking; `shell/` is a Qt 6 Widgets frontend that
-draws what the core hands it. They meet at one flat C ABI generated by cbindgen.
-`AGENTS.md` has the rules that seam is held to, `docs/design.md` the decisions
-and the mistakes already paid for.
+A Rust core does all the operations. `shell/` is a Qt 6 Widgets frontend that
+shows what the core gives it. The two parts connect at one flat C ABI, which
+cbindgen makes. `AGENTS.md` gives the rules for this connection. `docs/design.md`
+gives the decisions and the errors that this project made before.
 
 ## Licence
 
-AGPL-3.0-or-later, because it links MuPDF. Qt is LGPLv3 and dynamically linked.
+AGPL-3.0-or-later, because the software includes MuPDF. Qt is LGPLv3 and has a
+dynamic link.

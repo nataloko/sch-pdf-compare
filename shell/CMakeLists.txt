@@ -127,7 +127,9 @@ endif()
 # binaries link the same objects the application does.
 
 add_library(sc_shell STATIC
+    src/CompareView.cpp
     src/MainWindow.cpp
+    src/Session.cpp
 )
 target_include_directories(sc_shell PUBLIC src)
 target_compile_options(sc_shell PRIVATE ${SC_WARNINGS})

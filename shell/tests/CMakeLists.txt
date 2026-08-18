@@ -6,15 +6,20 @@ find_package(Qt6 6.4 REQUIRED COMPONENTS Test)
 
 # The C ABI gets its own harness, compiled as C *and* as C++: a Rust test
 # proves nothing about the seam, and the header has to be usable from both.
+#
+# The warning flags come from `SC_STRICT` rather than being written out here.
+# Spelling them out was the first thing the Windows CI job caught: MSVC rejects
+# `/Wextra` outright, which the top-level file already had a comment explaining
+# and which this file then ignored three lines later.
 add_executable(abi_test ../../crates/sc-ffi/tests/abi.c)
 target_link_libraries(abi_test PRIVATE schcompare_core)
-target_compile_options(abi_test PRIVATE -Wall -Wextra -Werror -pedantic)
+target_compile_options(abi_test PRIVATE ${SC_STRICT})
 add_dependencies(abi_test sc_core)
 add_test(NAME abi COMMAND abi_test)
 
 add_executable(abi_cxx_test ../../crates/sc-ffi/tests/abi_cxx.cpp)
 target_link_libraries(abi_cxx_test PRIVATE schcompare_core)
-target_compile_options(abi_cxx_test PRIVATE -Wall -Wextra -Werror -pedantic)
+target_compile_options(abi_cxx_test PRIVATE ${SC_STRICT})
 add_dependencies(abi_cxx_test sc_core)
 add_test(NAME abi_cxx COMMAND abi_cxx_test)
 

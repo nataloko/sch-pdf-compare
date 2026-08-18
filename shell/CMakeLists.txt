@@ -23,8 +23,14 @@ find_package(Qt6 6.4 REQUIRED COMPONENTS Widgets PrintSupport)
 # standard library trips over"; `-Wextra` is not a switch it has at all.
 if(MSVC)
     set(SC_WARNINGS /W4)
+    # The ABI harness is held to more than the rest: it exists to prove the
+    # generated header is usable, so a warning in it is a defect in the header.
+    # `/permissive-` is the nearest MSVC has to `-pedantic` — both are about
+    # holding the compiler to the standard rather than to its own dialect.
+    set(SC_STRICT /W4 /WX /permissive-)
 else()
     set(SC_WARNINGS -Wall -Wextra)
+    set(SC_STRICT -Wall -Wextra -Werror -pedantic)
 endif()
 
 # --- the Rust core -----------------------------------------------------------

@@ -579,6 +579,18 @@ bool CompareView::contentToPage(const QPoint &content, int *page, QPointF *pageP
 }
 
 void CompareView::mousePressEvent(QMouseEvent *e) {
+    // Grab and pull. Only when there is somewhere to pull to: one sheet at a
+    // time has nothing to scroll, and a closed-hand cursor over a viewport
+    // that cannot move is a promise the view does not keep.
+    if (e->button() == Qt::MiddleButton && !m_dragging &&
+        (horizontalScrollBar()->maximum() > 0 || verticalScrollBar()->maximum() > 0)) {
+        m_panning = true;
+        m_panFrom = e->pos();
+        m_panScroll = QPoint(horizontalScrollBar()->value(), verticalScrollBar()->value());
+        viewport()->setCursor(Qt::ClosedHandCursor);
+        e->accept();
+        return;
+    }
     if (e->button() == Qt::LeftButton && (m_armed || (e->modifiers() & Qt::ControlModifier))) {
         m_dragging = true;
         m_dragStart = e->pos() + contentOrigin();
@@ -590,6 +602,17 @@ void CompareView::mousePressEvent(QMouseEvent *e) {
 }
 
 void CompareView::mouseMoveEvent(QMouseEvent *e) {
+    if (m_panning) {
+        // The sheet follows the hand: the content moves with the pointer, so
+        // the scroll goes the other way. Measured from where the grab started
+        // rather than from the last event, so a drag that runs into the end of
+        // the set and comes back lands where it began.
+        const QPoint d = e->pos() - m_panFrom;
+        horizontalScrollBar()->setValue(m_panScroll.x() - d.x());
+        verticalScrollBar()->setValue(m_panScroll.y() - d.y());
+        e->accept();
+        return;
+    }
     if (m_dragging) {
         m_dragNow = e->pos() + contentOrigin();
         viewport()->update();
@@ -599,6 +622,19 @@ void CompareView::mouseMoveEvent(QMouseEvent *e) {
 }
 
 void CompareView::mouseReleaseEvent(QMouseEvent *e) {
+    if (m_panning && e->button() == Qt::MiddleButton) {
+        m_panning = false;
+        // Back to whatever the cursor was: a rectangle can be armed from the
+        // menu and then panned to the corner it is wanted in, and losing the
+        // cross there would say the arming had been forgotten.
+        if (m_armed) {
+            viewport()->setCursor(Qt::CrossCursor);
+        } else {
+            viewport()->unsetCursor();
+        }
+        e->accept();
+        return;
+    }
     if (!m_dragging) {
         QAbstractScrollArea::mouseReleaseEvent(e);
         return;

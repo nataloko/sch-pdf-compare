@@ -604,6 +604,16 @@ works while the bar is on screen — and it takes whichever axis carries the
 movement, since some platforms swap the two themselves when Shift is held and
 reading only the vertical would make it do nothing there.
 
+**The middle button grabs the sheet and pulls it about.** The left one is
+spoken for: Ctrl+drag marks a region to exclude, and arming that from the menu
+takes a plain left drag as well, so a left-drag pan would have to know which of
+the three it was in the middle of. The middle button was free. It grabs only
+when there is something to scroll — one sheet at a time has nothing — because a
+closed-hand cursor over a viewport that cannot move is a promise the view does
+not keep. The scroll is measured from where the grab started rather than from
+the last event, so a drag that runs into the end of the set and comes back lands
+where it began.
+
 **The toolbar has pictures now**, and the reason it did not is answered rather
 than forgotten. It said: there is no icon set that says "only the earlier
 revision", and a toolbar of guesses is worse than no toolbar. Both halves still

@@ -30,6 +30,7 @@
 #include <QPushButton>
 #include <QFileInfo>
 #include <QLabel>
+#include <QMouseEvent>
 #include <QTest>
 #include <QScrollBar>
 #include <QSlider>
@@ -796,6 +797,42 @@ int main(int argc, char **argv) {
         check(v->value() > wasV && h->value() == wasH,
               QStringLiteral("and without Shift it is the scroll it always was"));
         v->setValue(wasV);
+
+        // The middle button grabs the sheet and pulls it. The left one is
+        // spoken for by the exclusion rectangle, and this must not draw one.
+        int regions = 0;
+        QObject::connect(view, &CompareView::regionSelected, view,
+                         [&regions](int, const QRectF &) { regions++; });
+        auto mouse = [&](QEvent::Type t, Qt::MouseButton b, Qt::MouseButtons held,
+                         const QPoint &at) {
+            QMouseEvent ev(t, QPointF(at), view->viewport()->mapToGlobal(QPointF(at)), b, held,
+                           Qt::NoModifier);
+            QApplication::sendEvent(view->viewport(), &ev);
+        };
+        const int dx = qMin(120, h->maximum() - h->value());
+        const int dy = qMin(80, v->maximum() - v->value());
+        const QPoint from(400, 300);
+        const QPoint to = from - QPoint(dx, dy);
+        const int startH = h->value();
+        const int startV = v->value();
+        mouse(QEvent::MouseButtonPress, Qt::MiddleButton, Qt::MiddleButton, from);
+        mouse(QEvent::MouseMove, Qt::NoButton, Qt::MiddleButton, to);
+        QTest::qWait(20);
+        // The sheet follows the hand, so the scroll goes the other way, by
+        // exactly as far as the pointer moved.
+        check(h->value() == startH + dx && v->value() == startV + dy,
+              QStringLiteral("the middle button drags the sheet, %1 x %2 wanted %3 x %4")
+                  .arg(h->value())
+                  .arg(v->value())
+                  .arg(startH + dx)
+                  .arg(startV + dy));
+        mouse(QEvent::MouseButtonRelease, Qt::MiddleButton, Qt::NoButton, to);
+        mouse(QEvent::MouseMove, Qt::NoButton, Qt::NoButton, from);
+        QTest::qWait(20);
+        check(h->value() == startH + dx, QStringLiteral("letting go stops it moving"));
+        check(regions == 0, QStringLiteral("and none of it excluded a region"));
+        shot(&win, QStringLiteral("panned"));
+
         view->setFit(CompareView::Fit::Width);
         QTest::qWait(50);
     }

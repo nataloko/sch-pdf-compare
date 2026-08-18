@@ -71,8 +71,9 @@ customer material. The `samples/` directory stays out of the repository.
   sheet and to the last sheet. A zoom operation stops this view, because the
   sheet is then larger than the window. This view operates with the overlay,
   with one revision, and with the side-by-side view.
-- **Movement on a sheet that is larger than the window.** Hold `Shift` and turn
-  the wheel to move the sheet to the left and to the right.
+- **Movement on a sheet that is larger than the window.** Hold the middle button
+  and move the pointer to move the sheet. Hold `Shift` and turn the wheel to
+  move the sheet to the left and to the right.
 - **A print function** in the same orientation as the drawing. Each page gives
   the two file names, the view, the tolerance, and the regions that the software
   did not compare.

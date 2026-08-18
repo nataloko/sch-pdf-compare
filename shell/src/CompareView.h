@@ -165,4 +165,12 @@ class CompareView : public QAbstractScrollArea {
     // touchpad both send fractions of a notch, and a sheet per fraction sends
     // an 85-sheet set past in a flick.
     int m_wheelSpin = 0;
+
+    // Grabbing the sheet with the middle button and pulling it about. A drawing
+    // at a zoom that makes a resistor value legible is several viewports wide,
+    // and reaching the other end of it by two scrollbars is the slow way; the
+    // left button is spoken for by the exclusion rectangle.
+    bool m_panning = false;
+    QPoint m_panFrom;   // where the grab started, in viewport coordinates
+    QPoint m_panScroll; // the two scrollbars when it started
 };

@@ -9,6 +9,7 @@
 // a picture is far easier to understand next to the picture.
 //
 // Copyright (c) the sch-pdf-compare authors. AGPL-3.0-or-later; see LICENSE.
+#include "ColourDialog.h"
 #include "CompareView.h"
 #include "MainWindow.h"
 #include "Session.h"
@@ -20,9 +21,11 @@
 #include <QJsonObject>
 #include <QFile>
 #include <QPrinter>
+#include <QPushButton>
 #include <QFileInfo>
 #include <QFile>
 #include <QPrinter>
+#include <QPushButton>
 #include <QFileInfo>
 #include <QLabel>
 #include <QTest>
@@ -258,6 +261,46 @@ int main(int argc, char **argv) {
         if (out.open(QIODevice::WriteOnly | QIODevice::Text)) {
             out.write(md.toUtf8());
         }
+    }
+
+    // The overlay colours. The default pair is red and green, which a reader
+    // with red-green colour blindness cannot tell apart — and everything this
+    // tool shows is carried by those two colours, so this has to be reachable
+    // without editing a settings file.
+    {
+        check(win.findChild<QAction *>(QStringLiteral("overlayColours")) != nullptr,
+              QStringLiteral("there is a menu entry for the colours"));
+        const QColor wasA = s->colourOnlyA();
+        check(wasA == ColourDialog::defaultA(), QStringLiteral("the default is red"));
+
+        ColourDialog d(s->colourOnlyA(), s->colourOnlyB());
+        d.findChild<QPushButton *>(QStringLiteral("accessiblePreset"))->click();
+        check(d.onlyA() == ColourDialog::accessibleA() && d.onlyB() == ColourDialog::accessibleB(),
+              QStringLiteral("the preset picks a pair that survives colour blindness"));
+        shot(&d, QStringLiteral("colours"));
+
+        s->setColours(d.onlyA(), d.onlyB());
+        QTest::qWait(20);
+        check(s->colourOnlyA() == ColourDialog::accessibleA(),
+              QStringLiteral("and the core takes them"));
+
+        // The overlay has to actually come out in the new colours.
+        const QSize dev = s->pageDeviceSize(1, 1.0);
+        const QImage tile = s->tile(1, 1.0, QRect(QPoint(0, 0), dev), SC_VIEW_MODE_OVERLAY);
+        bool blueish = false;
+        for (int y = 0; y < tile.height() && !blueish; y += 2) {
+            for (int x = 0; x < tile.width(); x += 2) {
+                const QColor c = tile.pixelColor(x, y);
+                if (c.blue() > c.red() + 60 && c.blue() > c.green() + 40) {
+                    blueish = true;
+                    break;
+                }
+            }
+        }
+        check(blueish, QStringLiteral("the overlay is drawn in them"));
+
+        s->setColours(ColourDialog::defaultA(), ColourDialog::defaultB());
+        QTest::qWait(20);
     }
 
     // Side by side. Where the overlay is at its worst — text that changed is

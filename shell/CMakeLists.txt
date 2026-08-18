@@ -127,6 +127,7 @@ endif()
 # binaries link the same objects the application does.
 
 add_library(sc_shell STATIC
+    src/ColourDialog.cpp
     src/CompareView.cpp
     src/MainWindow.cpp
     src/Session.cpp

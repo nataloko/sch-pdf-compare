@@ -1,6 +1,7 @@
 // Copyright (c) the sch-pdf-compare authors. AGPL-3.0-or-later; see LICENSE.
 #include "MainWindow.h"
 
+#include "ColourDialog.h"
 #include "CompareView.h"
 #include "Session.h"
 
@@ -137,6 +138,19 @@ void MainWindow::buildMenus() {
     QAction *zi = view->addAction(tr("Zoom &In"), this,
                                   [this] { m_view->setZoom(m_view->zoom() * 1.25); });
     zi->setShortcut(QKeySequence::ZoomIn);
+    view->addSeparator();
+    QAction *col = view->addAction(tr("Overlay &Colours…"), this, [this] {
+        if (!m_session) {
+            return;
+        }
+        ColourDialog d(m_session->colourOnlyA(), m_session->colourOnlyB(), this);
+        if (d.exec() == QDialog::Accepted) {
+            m_session->setColours(d.onlyA(), d.onlyB());
+            persist();
+        }
+    });
+    col->setObjectName(QStringLiteral("overlayColours"));
+    view->addSeparator();
     QAction *zo = view->addAction(tr("Zoom &Out"), this,
                                   [this] { m_view->setZoom(m_view->zoom() / 1.25); });
     zo->setShortcut(QKeySequence::ZoomOut);

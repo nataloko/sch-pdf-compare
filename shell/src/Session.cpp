@@ -260,6 +260,25 @@ bool Session::lastPair(QString *a, QString *b) {
     return true;
 }
 
+QColor Session::colourOnlyA() const {
+    uint32_t a = 0;
+    uint32_t b = 0;
+    sc_session_colours(m_s, &a, &b);
+    return QColor::fromRgb(a);
+}
+
+QColor Session::colourOnlyB() const {
+    uint32_t a = 0;
+    uint32_t b = 0;
+    sc_session_colours(m_s, &a, &b);
+    return QColor::fromRgb(b);
+}
+
+void Session::setColours(const QColor &onlyA, const QColor &onlyB) {
+    sc_session_set_colours(m_s, onlyA.rgb() & 0xffffffu, onlyB.rgb() & 0xffffffu);
+    emit invalidated();
+}
+
 QVector<QRectF> Session::ignoreRects() const {
     QVector<QRectF> out;
     const size_t n = sc_session_ignore_rect_count(m_s);

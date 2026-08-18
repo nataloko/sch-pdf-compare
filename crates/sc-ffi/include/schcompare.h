@@ -324,6 +324,33 @@ void sc_session_set_tolerance(ScSession *s, int32_t tolerance);
 int32_t sc_session_page_delta(const ScSession *s);
 
 /**
+ * The two overlay colours, packed as `0x00RRGGBB`.
+ *
+ * Configurable because the default pair is red and green, and a reader with
+ * red-green colour blindness cannot use it. Everything this tool shows is
+ * carried by those two colours, so this is not a preference.
+ *
+ * # Safety
+ * `s` must be null or a live session; `only_a` and `only_b` must be writable.
+ */
+ScStatus sc_session_colours(const ScSession *s,
+                            uint32_t *only_a,
+                            uint32_t *only_b);
+
+/**
+ * Sets the two overlay colours, packed as `0x00RRGGBB`.
+ *
+ * Every composed tile is drawn from these, so the cached ones are dropped. The
+ * scans are not: which regions differ does not depend on how they are painted.
+ *
+ * # Safety
+ * `s` must be null or a live session.
+ */
+void sc_session_set_colours(ScSession *s,
+                            uint32_t only_a,
+                            uint32_t only_b);
+
+/**
  * Nudges which sheet of B lines up with which sheet of A.
  *
  * Every cached scan is about the old pairing, so they all go.

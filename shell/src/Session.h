@@ -7,6 +7,7 @@
 // Copyright (c) the sch-pdf-compare authors. AGPL-3.0-or-later; see LICENSE.
 #pragma once
 
+#include <QColor>
 #include <QImage>
 #include <QObject>
 #include <QRectF>
@@ -57,6 +58,13 @@ class Session : public QObject {
 
     int tolerance() const;
     void setTolerance(int t);
+
+    // The two overlay colours. Configurable because the default pair is red and
+    // green, which a reader with red-green colour blindness cannot use, and
+    // everything this tool shows is carried by those two colours.
+    QColor colourOnlyA() const;
+    QColor colourOnlyB() const;
+    void setColours(const QColor &onlyA, const QColor &onlyB);
 
     int pageDelta() const;
     void setPageDelta(int d);

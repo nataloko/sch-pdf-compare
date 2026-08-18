@@ -422,6 +422,51 @@ pub unsafe extern "C" fn sc_session_page_delta(s: *const ScSession) -> i32 {
     }
 }
 
+/// The two overlay colours, packed as `0x00RRGGBB`.
+///
+/// Configurable because the default pair is red and green, and a reader with
+/// red-green colour blindness cannot use it. Everything this tool shows is
+/// carried by those two colours, so this is not a preference.
+///
+/// # Safety
+/// `s` must be null or a live session; `only_a` and `only_b` must be writable.
+#[no_mangle]
+pub unsafe extern "C" fn sc_session_colours(
+    s: *const ScSession,
+    only_a: *mut u32,
+    only_b: *mut u32,
+) -> ScStatus {
+    let (Some(s), false, false) = (s.as_ref(), only_a.is_null(), only_b.is_null()) else {
+        return invalid("a live session and two writable colours are required");
+    };
+    let o = s.inner.options();
+    let pack = |c: sc_diff::Rgb| (u32::from(c.r) << 16) | (u32::from(c.g) << 8) | u32::from(c.b);
+    *only_a = pack(o.only_a);
+    *only_b = pack(o.only_b);
+    SC_OK
+}
+
+/// Sets the two overlay colours, packed as `0x00RRGGBB`.
+///
+/// Every composed tile is drawn from these, so the cached ones are dropped. The
+/// scans are not: which regions differ does not depend on how they are painted.
+///
+/// # Safety
+/// `s` must be null or a live session.
+#[no_mangle]
+pub unsafe extern "C" fn sc_session_set_colours(s: *mut ScSession, only_a: u32, only_b: u32) {
+    let Some(s) = s.as_mut() else {
+        return;
+    };
+    let unpack = |v: u32| sc_diff::Rgb::new((v >> 16) as u8, (v >> 8) as u8, v as u8);
+    let mut o = s.inner.options();
+    o.only_a = unpack(only_a);
+    o.only_b = unpack(only_b);
+    s.inner.set_options(o);
+    // The tiles are painted from these; the scans are not.
+    s.last_tile = None;
+}
+
 /// Nudges which sheet of B lines up with which sheet of A.
 ///
 /// Every cached scan is about the old pairing, so they all go.

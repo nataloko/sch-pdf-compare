@@ -13,6 +13,7 @@
 mod matching;
 mod scan;
 mod sweep;
+mod textdiff;
 mod tile;
 #[allow(unsafe_code)]
 mod wakeup;

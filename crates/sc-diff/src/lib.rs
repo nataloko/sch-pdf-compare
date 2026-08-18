@@ -17,6 +17,7 @@ mod compose;
 mod geom;
 mod ink;
 mod pixels;
+mod words;
 
 pub mod pairing;
 
@@ -26,6 +27,7 @@ pub use geom::{Point, Rect, RectF, Rgb, Size};
 pub use ink::{compose_ink, dilate_ink, ink_from_rgb, read_ink_row};
 pub use pairing::{Pair, Pairing};
 pub use pixels::{PixelFormat, Pixels, Tile};
+pub use words::{diff_words, TextChange, TextChangeKind, Word, SAME_WORD_PT};
 
 /// Which of the three views the tile is composed for.
 ///

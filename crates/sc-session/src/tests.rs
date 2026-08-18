@@ -427,3 +427,63 @@ fn nudging_the_delta_replaces_an_automatic_match() {
     );
     assert_eq!(s.pair(1).page_a, 0, "and behaves like a plain offset again");
 }
+
+#[test]
+fn the_text_diff_is_where_a_cross_producer_pair_becomes_readable() {
+    // The measurement this feature exists for. On sheet 2 the pixel comparison
+    // reports 26 regions for the cross-producer pair and 6 for the same-producer
+    // one — the difference between them is glyph rasterisation, not content.
+    // The words show what actually changed, and the cross-producer pair should
+    // come out no worse than the same-producer one.
+    let Some(same) = session(A10, B03) else {
+        return;
+    };
+    let Some(cross) = session(B03, D02) else {
+        return;
+    };
+
+    let same_px = same.scan_page(2).expect("scans").changes.len();
+    let cross_px = cross.scan_page(2).expect("scans").changes.len();
+    let same_txt = same.page_text_changes(2).expect("reads").len();
+    let cross_txt = cross.page_text_changes(2).expect("reads").len();
+
+    assert!(
+        cross_px > same_px * 3,
+        "the pixel floor is real: {same_px} vs {cross_px}"
+    );
+    assert!(
+        cross_txt <= same_txt,
+        "text should not punish a change of producer: {same_txt} vs {cross_txt}"
+    );
+    assert!(
+        cross_txt < cross_px / 2,
+        "and should be far quieter: {cross_txt} vs {cross_px}"
+    );
+}
+
+#[test]
+fn a_document_against_itself_says_nothing_changed() {
+    let Some(s) = session(A10, A10) else { return };
+    for p in 1..=s.page_count() {
+        assert!(
+            s.page_text_changes(p).expect("reads").is_empty(),
+            "sheet {p}"
+        );
+    }
+}
+
+#[test]
+fn an_unmatched_sheet_reads_as_entirely_removed() {
+    let Some(mut s) = session(A10, B03) else {
+        return;
+    };
+    s.set_page_delta(1);
+    let changes = s.page_text_changes(1).expect("reads");
+    assert!(!changes.is_empty());
+    assert!(
+        changes
+            .iter()
+            .all(|c| c.kind == sc_diff::TextChangeKind::Added),
+        "virtual sheet 1 is B's orphaned first sheet, so all of it is new"
+    );
+}

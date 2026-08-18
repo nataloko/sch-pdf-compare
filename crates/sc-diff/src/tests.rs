@@ -605,3 +605,141 @@ fn the_render_margin_is_what_stops_a_tile_edge_inventing_a_change() {
         "without context the tile edge invents a change — this is the bug the margin prevents"
     );
 }
+
+fn word(text: &str, x: f32, y: f32) -> Word {
+    Word::new(text, RectF::new(x, y, 20.0, 8.0))
+}
+
+#[test]
+fn text_that_did_not_move_is_not_reported() {
+    let a = vec![word("NET_RESET#", 100.0, 200.0), word("10k", 300.0, 400.0)];
+    // The same sheet through a different PDF producer: everything shifted by
+    // less than a point, which is the largest displacement measured on the real
+    // sets. None of it is a change.
+    let b = vec![word("NET_RESET#", 100.7, 200.4), word("10k", 300.9, 400.2)];
+    assert!(diff_words(&a, &b, SAME_WORD_PT).is_empty());
+}
+
+#[test]
+fn a_value_that_changed_is_reported_with_both_readings() {
+    let a = vec![word("R47", 100.0, 200.0), word("10k", 100.0, 210.0)];
+    let b = vec![word("R47", 100.0, 200.0), word("12k", 100.0, 210.0)];
+    let changes = diff_words(&a, &b, SAME_WORD_PT);
+    assert_eq!(changes.len(), 1);
+    assert_eq!(changes[0].kind, TextChangeKind::Changed);
+    assert_eq!(changes[0].before, "10k");
+    assert_eq!(changes[0].after, "12k");
+    // Reported where it is, so the reader can be taken there.
+    assert_eq!(changes[0].rect.y, 210.0);
+}
+
+#[test]
+fn added_and_removed_text_is_told_apart() {
+    let a = vec![word("OLD_NET", 100.0, 200.0)];
+    let b = vec![word("NEW_NET", 500.0, 300.0)];
+    let changes = diff_words(&a, &b, SAME_WORD_PT);
+    assert_eq!(changes.len(), 2, "far apart, so not one change but two");
+    let removed = changes
+        .iter()
+        .find(|c| c.kind == TextChangeKind::Removed)
+        .expect("removed");
+    let added = changes
+        .iter()
+        .find(|c| c.kind == TextChangeKind::Added)
+        .expect("added");
+    assert_eq!(removed.before, "OLD_NET");
+    assert_eq!(removed.after, "");
+    assert_eq!(added.after, "NEW_NET");
+    assert_eq!(added.before, "");
+}
+
+#[test]
+fn a_repeated_label_pairs_with_its_own_copy() {
+    // A bus draws the same label down a column. Matching identical text before
+    // matching by position is what stops the first occurrence pairing with the
+    // wrong copy and inventing two changes.
+    let a = vec![
+        word("SPI_CLK", 100.0, 100.0),
+        word("SPI_CLK", 100.0, 120.0),
+        word("SPI_CLK", 100.0, 140.0),
+    ];
+    let mut b = a.clone();
+    b[1] = word("SPI_CS#", 100.0, 120.0);
+    let changes = diff_words(&a, &b, SAME_WORD_PT);
+    assert_eq!(
+        changes.len(),
+        1,
+        "only the middle one changed, got {changes:?}"
+    );
+    assert_eq!(changes[0].before, "SPI_CLK");
+    assert_eq!(changes[0].after, "SPI_CS#");
+    assert_eq!(changes[0].rect.y, 120.0);
+}
+
+#[test]
+fn changes_come_back_in_reading_order() {
+    let a = vec![word("A_ONE", 500.0, 400.0), word("B_TWO", 100.0, 100.0)];
+    let b = vec![word("A_MOD", 500.0, 400.0), word("B_MOD", 100.0, 100.0)];
+    let changes = diff_words(&a, &b, SAME_WORD_PT);
+    assert_eq!(changes.len(), 2);
+    assert!(
+        changes[0].rect.y < changes[1].rect.y,
+        "top of the sheet first"
+    );
+}
+
+#[test]
+fn an_empty_side_is_all_addition_or_all_removal() {
+    let a = vec![word("ONLY_HERE", 10.0, 10.0)];
+    let changes = diff_words(&a, &[], SAME_WORD_PT);
+    assert_eq!(changes.len(), 1);
+    assert_eq!(changes[0].kind, TextChangeKind::Removed);
+
+    let changes = diff_words(&[], &a, SAME_WORD_PT);
+    assert_eq!(changes.len(), 1);
+    assert_eq!(changes[0].kind, TextChangeKind::Added);
+
+    assert!(diff_words(&[], &[], SAME_WORD_PT).is_empty());
+}
+
+#[test]
+fn text_stamped_twice_in_one_place_is_one_thing() {
+    // Sheet 2 of the sample set draws its whole content three times over. Without
+    // collapsing that, every change on it is reported three times and a reader
+    // stepping through the list visits each one three times.
+    let a = vec![
+        word("B03", 100.0, 200.0),
+        word("B03", 100.0, 200.0),
+        word("B03", 100.3, 200.2),
+    ];
+    let b = vec![
+        word("D02", 100.0, 200.0),
+        word("D02", 100.0, 200.0),
+        word("D02", 100.3, 200.2),
+    ];
+    let changes = diff_words(&a, &b, SAME_WORD_PT);
+    assert_eq!(changes.len(), 1, "one change, not three: {changes:?}");
+    assert_eq!(
+        (changes[0].before.as_str(), changes[0].after.as_str()),
+        ("B03", "D02")
+    );
+}
+
+#[test]
+fn a_label_repeated_down_a_bus_is_not_collapsed() {
+    // The other side of the same coin: these are genuinely separate labels a few
+    // points apart, and collapsing them would hide a change to one of them.
+    let a = vec![
+        word("D0", 100.0, 100.0),
+        word("D0", 100.0, 110.0),
+        word("D0", 100.0, 120.0),
+    ];
+    let mut b = a.clone();
+    b[2] = word("D7", 100.0, 120.0);
+    let changes = diff_words(&a, &b, SAME_WORD_PT);
+    assert_eq!(changes.len(), 1);
+    assert_eq!(
+        changes[0].rect.y, 120.0,
+        "and it is the third one that changed"
+    );
+}

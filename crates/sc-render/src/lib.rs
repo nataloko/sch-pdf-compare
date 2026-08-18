@@ -14,6 +14,8 @@ mod error;
 
 pub use error::{Error, Result};
 
+pub use sc_diff::{RectF, Word};
+
 use mupdf::{Colorspace, Device, IRect, Matrix, Pixmap};
 
 /// One open document. Not `Sync`: MuPDF's context is per-thread, so the sweep
@@ -52,6 +54,32 @@ impl Document {
     pub fn page_text(&self, page_no: i32) -> Result<String> {
         let page = self.load(page_no)?;
         Ok(page.text(mupdf::TextExtractOptions::default())?)
+    }
+
+    /// The sheet's words, each with where it sits on the page in points.
+    ///
+    /// This is what a text-level comparison works from. It is worth far more
+    /// than it looks on a schematic: when two revisions came out of different
+    /// PDF producers most of the *pixel* difference is glyph rasterisation, and
+    /// comparing what the text says instead of how it was drawn sidesteps that
+    /// entirely.
+    pub fn page_words(&self, page_no: i32) -> Result<Vec<Word>> {
+        let page = self.load(page_no)?;
+        let words = page.words(mupdf::TextExtractOptions::default())?;
+        Ok(words
+            .into_iter()
+            .map(|w| {
+                Word::new(
+                    w.text,
+                    RectF::new(
+                        w.bounds.x0,
+                        w.bounds.y0,
+                        w.bounds.x1 - w.bounds.x0,
+                        w.bounds.y1 - w.bounds.y0,
+                    ),
+                )
+            })
+            .collect())
     }
 
     /// The whole sheet in device pixels at `zoom`, as MuPDF would round it.

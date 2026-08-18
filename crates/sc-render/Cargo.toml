@@ -6,6 +6,7 @@ license.workspace = true
 repository.workspace = true
 
 [dependencies]
+sc-diff.workspace = true
 # PDF only, on purpose. This tool is not a document viewer: dropping epub,
 # html, cbz, img, svg and the JavaScript engine cuts build time and attack
 # surface for formats no schematic set will ever be in.

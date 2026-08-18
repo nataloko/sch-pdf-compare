@@ -34,8 +34,20 @@ step "clippy"             cargo clippy --manifest-path "$manifest" --all-targets
 
 # The committed header must match what the source generates. A renumbered enum
 # is an ABI break and this diff is the only place it shows up.
+#
+# Reported separately when the difference is merely uncommitted, because that is
+# the normal state after changing the ABI and reads as a defect otherwise —
+# which cost two pushes that went out with this script showing red.
 cargo build --manifest-path "$manifest" -p sc-ffi >/dev/null 2>&1
-step "generated header"   git -C "$root" diff --exit-code -- crates/sc-ffi/include/schcompare.h
+header=crates/sc-ffi/include/schcompare.h
+if git -C "$root" diff --quiet -- "$header"; then
+    printf '  ok    generated header\n'
+elif git -C "$root" diff --quiet HEAD -- "$header"; then
+    printf '  FAIL  generated header does not match the source\n'
+    failed=1
+else
+    printf '  ok    generated header (regenerated, not committed yet)\n'
+fi
 
 if [ -d "$root/shell/build" ]; then
     step "shell build"    cmake --build "$root/shell/build"

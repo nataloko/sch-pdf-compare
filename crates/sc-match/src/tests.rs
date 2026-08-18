@@ -41,8 +41,8 @@ fn a_sheet_inserted_at_the_front_shows_as_added() {
         (0, 1),
         "the new sheet is added"
     );
-    for i in 1..6 {
-        assert_eq!((pairs[i].page_a, pairs[i].page_b), (i as i32, i as i32 + 1));
+    for (i, p) in pairs.iter().enumerate().skip(1) {
+        assert_eq!((p.page_a, p.page_b), (i as i32, i as i32 + 1));
     }
 }
 

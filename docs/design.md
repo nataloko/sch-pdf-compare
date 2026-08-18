@@ -194,6 +194,42 @@ failure, which is why they are written down.
 - **"`TocTree`'s root is an invisible container."** A Win32 tree-view detail. The
   changed-sheet list is a `QTreeWidget` populated from plain data.
 
+## Refusing a file, and saying why
+
+Three things had to be refused that MuPDF will happily accept.
+
+A **badly damaged file** opens: MuPDF rebuilds what it can and hands back zero
+pages. Without a check that reads as a comparison of two empty documents — a
+blank window and no explanation — which is squarely in this project's worst
+category, wrong output rather than an obvious failure.
+
+A **password-protected** drawing opens too, and renders nothing. Drawings arrive
+from outside often enough that this is worth naming rather than leaving as an
+empty overlay.
+
+And **every message names its file**. The shell opens two documents and reports
+one failure; "cannot read the file" leaves the reader to work out which. Nor does
+a MuPDF error number belong in front of a person — `code: 7, message: no objects
+found` was what "this is not a PDF" used to look like.
+
+## Testing without the drawings
+
+The real sets carry most of this project's evidence and none of them can be
+committed. Left there, a clone would build and pass and test almost nothing above
+the pixel kernel.
+
+`sc-fixture` writes minimal PDFs by hand — a frame, a title block carrying the
+revision, a few labels — and both the Rust integration tests and the window test
+compare a pair of them. The window test's fixtures are written into the build
+tree by CMake, so the sidebar, the sweep, the text panel, printing and the
+settings are all exercised on a machine with no customer material at all. Where
+the real sets *are* present they get a second pass, at 21 sheets of dense
+schematic rather than 6 of fixture.
+
+The fixture writer assembles the cross-reference table with real byte offsets
+rather than letting MuPDF repair it. A fixture quietly rebuilt on every open is
+not testing what it appears to be testing.
+
 ## Comparing what the sheet says
 
 Two tolerances, not one, and the reason is worth keeping.
@@ -285,6 +321,7 @@ Ranked for the schematic-review workflow.
 1. **Windows packaging.** The core cross-builds and passes its harness under
    Wine. What is left is building the shell — on Windows with the official Qt,
    or cross-built from a distribution with a MinGW Qt — and then an installer.
+   Neither has been run; this machine has neither.
 2. **Alignment** (projection-profile registration). Designed in the fork,
    unbuilt, and now measured against: the one sample pair that looked like it
    might need it turns out to have no offset to find. Build it only if a

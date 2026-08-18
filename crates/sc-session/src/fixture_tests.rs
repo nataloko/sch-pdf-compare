@@ -10,7 +10,7 @@
 use super::*;
 use sc_diff::TextChangeKind;
 use sc_fixture::{write, Sheet};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 /// A pair of files named after the test, so nothing races.
 fn pair(name: &str) -> (PathBuf, PathBuf) {
@@ -22,11 +22,11 @@ fn pair(name: &str) -> (PathBuf, PathBuf) {
     (a, b)
 }
 
-fn open(a: &PathBuf, b: &PathBuf) -> Session {
+fn open(a: &Path, b: &Path) -> Session {
     Session::open(&a.to_string_lossy(), &b.to_string_lossy()).expect("opens")
 }
 
-fn cleanup(a: &PathBuf, b: &PathBuf) {
+fn cleanup(a: &Path, b: &Path) {
     let _ = std::fs::remove_file(a);
     let _ = std::fs::remove_file(b);
 }

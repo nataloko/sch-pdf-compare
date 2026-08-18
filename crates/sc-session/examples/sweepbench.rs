@@ -8,7 +8,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("{} sheets", s.page_count());
 
     let t0 = Instant::now();
-    let mut sweep = s.start_sweep().expect("starts");
+    let sweep = s.start_sweep().expect("starts");
     let mut got = 0;
     while !sweep.status().finished {
         got += sweep.take_results().len();

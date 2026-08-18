@@ -787,6 +787,48 @@ int main(int argc, char **argv) {
         const QString rmd = rv->session()->report();
         check(!rmd.isEmpty() && rmd.contains(QStringLiteral("## Sheet")),
               QStringLiteral("and the report has the real set's sheets in it"));
+
+        // The fade, on a sheet of real line work rather than a fixture with
+        // four strings on it. This is the case it exists for: the drawing is
+        // 2.6% of the sheet and the change is a tenth of a per cent of it.
+        Session *rsn = rv->session();
+        const QSize dev = rsn->pageDeviceSize(2, 1.0);
+        auto marks = [](const QImage &img, int *neutral, int *coloured) {
+            *neutral = 0;
+            *coloured = 0;
+            for (int y = 0; y < img.height(); y++) {
+                for (int x = 0; x < img.width(); x++) {
+                    const QColor c = img.pixelColor(x, y);
+                    const int lo = qMin(qMin(c.red(), c.green()), c.blue());
+                    const int hi = qMax(qMax(c.red(), c.green()), c.blue());
+                    if (hi - lo > 40) {
+                        (*coloured)++;
+                    } else if (lo < 128) {
+                        (*neutral)++;
+                    }
+                }
+            }
+        };
+        int drawnFull = 0;
+        int changedFull = 0;
+        marks(rsn->tile(2, 1.0, QRect(QPoint(0, 0), dev), SC_VIEW_MODE_OVERLAY), &drawnFull,
+              &changedFull);
+        rsn->setSharedInk(0);
+        int drawnGone = 0;
+        int changedGone = 0;
+        marks(rsn->tile(2, 1.0, QRect(QPoint(0, 0), dev), SC_VIEW_MODE_OVERLAY), &drawnGone,
+              &changedGone);
+        rsn->setSharedInk(100);
+        check(drawnFull > 1000 && changedFull > 0,
+              QStringLiteral("the real sheet is dense and has changes on it: %1 / %2")
+                  .arg(drawnFull)
+                  .arg(changedFull));
+        check(drawnGone * 50 < drawnFull,
+              QStringLiteral("fading empties it: %1 of %2 left").arg(drawnGone).arg(drawnFull));
+        check(changedGone >= changedFull,
+              QStringLiteral("and every change is still there: %1 against %2")
+                  .arg(changedGone)
+                  .arg(changedFull));
         shot(&real, QStringLiteral("real-set"));
         real.close();
     } else {

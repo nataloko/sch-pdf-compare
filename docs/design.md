@@ -539,6 +539,13 @@ exactly what changed — the same trick as turning the room lights down to see o
 LED, and the reason it is a slider and not a switch is that stopping halfway
 keeps enough of the drawing to say *where* on the sheet the speck is.
 
+Measured on a real sheet at 150 dpi, the drawing covers 2.65% of the paper and
+the changes 0.13% of it. At 50 the artwork is still all there at half strength —
+136,778 marks at a mean of 65 out of 255 rather than 120 — and at 0 there are
+1,326 neutral pixels left on the whole sheet against 2,949 coloured ones. The
+few that survive are places where *both* revisions have unmatched ink at the
+same pixel, which composes dark: they are differences, not artwork.
+
 Three things follow from "and nothing else". It is not in the scan: what changed
 does not depend on how it is painted, and a reader who fades the drawing away
 must still be told the same number of sheets changed. It does not touch the two

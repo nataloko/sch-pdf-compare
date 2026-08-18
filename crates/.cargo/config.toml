@@ -1,0 +1,22 @@
+# Cross-compiling the core to Windows.
+#
+# Only these two settings and the compiler names below are needed: MuPDF builds
+# from source for the MinGW target without any special handling, which was the
+# open question when this project started. `cargo build -p sc-ffi --target
+# x86_64-pc-windows-gnu` takes about half a minute and the result loads and
+# passes the ABI harness under Wine.
+#
+# Deliberately no `[build]` section: setting a default target here would make
+# every native build pass `--target`, which disables this file's own `[build]`
+# config and rebuilds proc macros for no reason.
+
+[target.x86_64-pc-windows-gnu]
+linker = "x86_64-w64-mingw32-gcc"
+ar = "x86_64-w64-mingw32-ar"
+
+# What the `cc` crate reaches for when it compiles MuPDF for that target. These
+# are read only when building for it, so they cost a native build nothing.
+[env]
+CC_x86_64_pc_windows_gnu = "x86_64-w64-mingw32-gcc"
+CXX_x86_64_pc_windows_gnu = "x86_64-w64-mingw32-g++"
+AR_x86_64_pc_windows_gnu = "x86_64-w64-mingw32-ar"

@@ -76,6 +76,10 @@ cmake --build shell/build
 
 CMake drives cargo, so that is the whole build.
 
+For Windows, `packaging/windows/build-core.sh` cross-builds the core with MinGW
+and checks it under Wine. The Qt shell needs a distribution that ships a MinGW
+build of Qt 6; Ubuntu does not.
+
 ## Layout
 
 A Rust core does all the thinking; `shell/` is a Qt 6 Widgets frontend that

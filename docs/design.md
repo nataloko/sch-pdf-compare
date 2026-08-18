@@ -194,6 +194,20 @@ failure, which is why they are written down.
 - **"`TocTree`'s root is an invisible container."** A Win32 tree-view detail. The
   changed-sheet list is a `QTreeWidget` populated from plain data.
 
+## Windows
+
+The core cross-compiles to `x86_64-pc-windows-gnu` with the MinGW toolchain, and
+the resulting DLL loads and passes the whole ABI harness under Wine. MuPDF needed
+no special handling, which is worth writing down because it was the one thing
+about this plan that looked likely to go badly: the fork it grew out of builds
+MuPDF through its own makefiles precisely to avoid that fight, and none of that
+turned out to be necessary.
+
+What is not solved is Qt. Ubuntu ships no MinGW build of Qt 6, so the shell
+cannot be cross-built here; that wants Fedora's `mingw64-qt6-qtbase`, the route
+the sibling Sterna project already takes, and its packaging can be copied
+alongside.
+
 ## What is next
 
 Ranked for the schematic-review workflow.

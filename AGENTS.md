@@ -61,6 +61,22 @@ Rust alone, when working on a core crate:
 cd crates && cargo test
 ```
 
+### Windows
+
+The core cross-builds and is verified under Wine by one script:
+
+```sh
+./packaging/windows/build-core.sh          # or `release`
+```
+
+MuPDF builds for the MinGW target with no special handling — this was the open
+question when the project started and the answer is that it just works, in about
+half a minute. `crates/.cargo/config.toml` holds the two settings it needs.
+
+The Qt shell is **not** cross-built here: Ubuntu has no MinGW build of Qt 6. That
+needs a distribution which does — Fedora's `mingw64-qt6-qtbase`, which is what
+the sibling Sterna project uses — or a Qt built by hand.
+
 ## Testing
 
 ```sh

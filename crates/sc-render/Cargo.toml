@@ -4,3 +4,13 @@ version.workspace = true
 edition.workspace = true
 license.workspace = true
 repository.workspace = true
+
+[dependencies]
+# PDF only, on purpose. This tool is not a document viewer: dropping epub,
+# html, cbz, img, svg and the JavaScript engine cuts build time and attack
+# surface for formats no schematic set will ever be in.
+#
+# `base14-fonts` stays. The sample schematics embed their fonts, but a PDF that
+# names Helvetica without embedding it is common enough, and without the base14
+# set MuPDF has nothing to draw its text with.
+mupdf = { version = "0.8.0", default-features = false, features = ["base14-fonts"] }

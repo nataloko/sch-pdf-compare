@@ -63,55 +63,42 @@ cd crates && cargo test
 
 ### Windows
 
-The core cross-builds and is verified under Wine by one script:
+There are two routes, and they want different things.
+
+**Building on Windows** is the ordinary one and needs nothing special: the
+official Qt for Windows (either flavour the Qt installer offers, MSVC or
+MinGW), Rust, CMake and Ninja. The same command builds it:
+
+```sh
+cmake -S shell -B shell/build -G Ninja && cmake --build shell/build
+```
+
+`shell/CMakeLists.txt` already handles it — the MinGW target triple is set only
+when `CMAKE_CROSSCOMPILING`, so a native build lets cargo pick the host
+toolchain, and the import library is named for MSVC or MinGW accordingly.
+`mupdf-sys` builds MuPDF through MSBuild under MSVC. Match the two halves:
+MSVC Qt with the `x86_64-pc-windows-msvc` Rust toolchain, MinGW Qt with
+`x86_64-pc-windows-gnu`.
+
+**Cross-compiling from Linux** is what `packaging/windows/build-core.sh` does
+for the core, and it is the half that was in doubt:
 
 ```sh
 ./packaging/windows/build-core.sh          # or `release`
 ```
 
-MuPDF builds for the MinGW target with no special handling — this was the open
-question when the project started and the answer is that it just works, in about
-half a minute. `crates/.cargo/config.toml` holds the two settings it needs.
+MuPDF builds for the MinGW target with no special handling, in about half a
+minute, and the DLL passes the whole ABI harness under Wine.
+`crates/.cargo/config.toml` holds the two settings it needs.
 
-The Qt shell is **not** cross-built here: Ubuntu has no MinGW build of Qt 6. That
-needs a distribution which does — Fedora's `mingw64-qt6-qtbase`, which is what
-the sibling Sterna project uses — or a Qt built by hand.
+Cross-building the **shell** is the awkward part, and only because of Qt: it
+needs a MinGW Qt 6 whose `moc`, `rcc` and `uic` run on the build machine, which
+Ubuntu does not package and Fedora does (`mingw64-qt6-qtbase`). That is a reason
+to cross-compile from Fedora, or to build on Windows — not a requirement of this
+project.
 
-## Testing
-
-```sh
-./check.sh
-```
-
-That is the whole check: build, tests, formatting, clippy at zero warnings, the
-generated header matching its source, the Qt tests, and that no customer
-material has been committed. **Use it rather than reading build output.** Twice
-during this project a grep for the word "error" reported a clean run while the
-test binaries were not compiling at all — a build that fails prints no test
-results, and "no failures found" is not the same as "the tests passed".
-
-The pieces on their own, when iterating:
-
-```sh
-ctest --test-dir shell/build --output-on-failure   # ABI harness, Qt tests
-cd crates && cargo test                            # the core
-```
-
-Every test is a plain executable, not a framework. The ones that draw also take
-`--write <dir>` and dump what they drew as a PNG.
-
-The ABI harness `crates/sc-ffi/tests/abi.c` is compiled **as C and again as C++**
-with `-Wall -Wextra -Werror -pedantic`; a Rust test proves nothing about the
-seam. The C++ half goes through `abi_cxx.cpp`, which `#include`s the C file —
-`set_source_files_properties(... TARGET_DIRECTORY ...)` applies to the whole
-directory scope and quietly relabelled both halves as C++.
-
-There is no display in the dev container. To see the application:
-
-```sh
-xvfb-run -a --server-args="-screen 0 1400x1000x24" ./shell/build/sch-pdf-compare
-# and from inside the same X server: import -window root shot.png
-```
+**Neither route has been run here.** This machine has no Windows and no MinGW Qt;
+what is verified is the core cross-build and its harness under Wine.
 
 ## Licensing
 

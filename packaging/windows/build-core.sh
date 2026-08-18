@@ -2,10 +2,12 @@
 # Cross-builds the Rust core for Windows and checks it against the ABI harness
 # under Wine.
 #
-# The Qt shell is not built here. Ubuntu has no MinGW build of Qt 6, so the
-# application needs a distribution that does — Fedora's `mingw64-qt6-qtbase`,
-# which is what the sibling Sterna project uses — or a Qt built by hand. The
-# core is the half that was in doubt, and it is the half this proves.
+# The Qt shell is not built here, and that is a limitation of this machine
+# rather than of the project. Building on Windows needs nothing but the official
+# Qt and the same one-command CMake build; cross-building the shell from Linux
+# needs a MinGW Qt 6 whose moc/rcc/uic run on the build host, which Ubuntu does
+# not package and Fedora does. The core is the half that was in doubt, and it is
+# the half this proves.
 set -euo pipefail
 
 here=$(cd "$(dirname "$0")" && pwd)

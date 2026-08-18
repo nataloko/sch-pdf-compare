@@ -254,17 +254,37 @@ about this plan that looked likely to go badly: the fork it grew out of builds
 MuPDF through its own makefiles precisely to avoid that fight, and none of that
 turned out to be necessary.
 
-What is not solved is Qt. Ubuntu ships no MinGW build of Qt 6, so the shell
-cannot be cross-built here; that wants Fedora's `mingw64-qt6-qtbase`, the route
-the sibling Sterna project already takes, and its packaging can be copied
-alongside.
+Qt is not a problem so much as a choice of route, and it is worth being precise
+about which, because it is easy to state the awkward case as though it were the
+only one.
+
+*Building on Windows* needs nothing special: the official Qt for Windows in
+either flavour the installer offers, and the same one-command build.
+`shell/CMakeLists.txt` already covers it — the MinGW triple is set only under
+`CMAKE_CROSSCOMPILING`, so a native build lets cargo take the host toolchain,
+and the MSVC and MinGW import-library names are both handled. `mupdf-sys` builds
+MuPDF through MSBuild under MSVC.
+
+*Cross-compiling the shell from Linux* is the awkward case, and only because Qt's
+own tools have to run on the build machine: it wants a MinGW Qt 6 with native
+`moc`, `rcc` and `uic`, which Ubuntu does not package and Fedora does — the route
+the sibling Sterna project takes.
+
+Neither has been run here; this machine has no Windows and no MinGW Qt. What is
+verified is the core.
+
+One thing that makes the choice less fraught than it looks: the seam is a flat C
+ABI whose returns are all borrowed, so no allocation crosses it and there is no
+allocator to mismatch. Matching the two halves' toolchains is still the sensible
+default, but the design does not punish getting it wrong.
 
 ## What is next
 
 Ranked for the schematic-review workflow.
 
 1. **Windows packaging.** The core cross-builds and passes its harness under
-   Wine; the shell needs a distribution with a MinGW Qt 6, and then an installer.
+   Wine. What is left is building the shell — on Windows with the official Qt,
+   or cross-built from a distribution with a MinGW Qt — and then an installer.
 2. **Alignment** (projection-profile registration). Designed in the fork,
    unbuilt, and now measured against: the one sample pair that looked like it
    might need it turns out to have no offset to find. Build it only if a

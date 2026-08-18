@@ -59,6 +59,23 @@ for s in 256 128 64 48 32; do
 done
 
 export QMAKE=${QMAKE:-$(command -v qmake6 || echo /usr/lib/qt6/bin/qmake)}
+
+# Qt's Wayland client loads its EGL buffer integration from
+# `wayland-graphics-integration-client`, and linuxdeploy-plugin-qt only deploys
+# that directory for a Qt Wayland *compositor*, never for a client. Without it
+# Qt falls back to shared-memory buffers — and, less obviously, draws no window
+# decoration at all, so the window comes up on GNOME with no title bar and no
+# close button. Deploy the one client plugin by hand, before linuxdeploy runs,
+# so it deploys the libraries it needs along with everything else.
+qtplugins=$("$QMAKE" -query QT_INSTALL_PLUGINS 2>/dev/null || echo /usr/lib/x86_64-linux-gnu/qt6/plugins)
+gfx=$qtplugins/wayland-graphics-integration-client/libqt-plugin-wayland-egl.so
+if [ -f "$gfx" ]; then
+    mkdir -p "$out/AppDir/usr/plugins/wayland-graphics-integration-client"
+    install -m644 "$gfx" "$out/AppDir/usr/plugins/wayland-graphics-integration-client/"
+else
+    echo "warning: no $gfx — the AppImage will have no window decorations on Wayland" >&2
+fi
+
 # Widgets and PrintSupport are what the application links; the plugin works the
 # rest out from the binary itself.
 export EXTRA_QT_MODULES="widgets;printsupport"

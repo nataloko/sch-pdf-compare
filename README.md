@@ -36,6 +36,11 @@ customer material. `samples/` is gitignored and stays that way.)
   a comparison across two different PDF producers usable at all: see below.
 - **A background sweep** that scans the whole set the moment it opens, so the
   question "which sheets changed" is answered without waiting.
+- **Side by side** on `4`, sharing one scroll and one zoom — for where the
+  overlay is at its worst, drawing two readings of changed text on top of each
+  other.
+- **Printing**, turned to match the drawing, each page captioned with the two
+  files, the view, the tolerance and any excluded regions.
 - **A change report** — File ▸ Export Change Report — writing the whole
   comparison as Markdown, sheet by sheet, with the text changes as a table.
   A review's output is not a window; it is the list somebody else has to read.

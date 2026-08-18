@@ -223,6 +223,28 @@ which looked exactly like a 2% horizontal rescale between producers. It was not:
 a distinctive token sat at the same coordinates in both files. **On a dense
 sheet, "nearest word with the same text" is not evidence of anything.**
 
+## Side by side, and printing
+
+Side by side is one scroll and one zoom over a content area two sheets wide,
+rather than two viewports kept in step. Synchronised panning is then not a
+feature that can drift — there is only one thing to pan.
+
+It earns its place where the overlay is at its worst. Where text changed, the
+overlay draws both readings on top of each other and neither is legible; the
+text panel says what they are, and this shows them where they sit.
+
+The view mode is asked for **per tile** rather than read from the session,
+because this view wants both single-document views on screen at once and neither
+of them is "the" current mode. The tile cache keys on it too — without that, the
+two panes ask for the same sheet at the same place and get each other's picture.
+
+Printing turns the paper to match the drawing. A schematic set is landscape and
+the default page is portrait, which prints the sheet at two-thirds the size it
+could be. Every page carries a caption naming the two files, the view, the
+tolerance, and — most of all — whether regions were excluded from the
+comparison: a printout gets passed around without the application that made it,
+and "part of this was not compared" has to travel with it.
+
 ## Windows
 
 The core cross-compiles to `x86_64-pc-windows-gnu` with the MinGW toolchain, and
@@ -241,13 +263,9 @@ alongside.
 
 Ranked for the schematic-review workflow.
 
-1. **Printing.** Qt's print support is linked and unused. The change report
-   covers circulating findings as a document; what it does not cover is the
-   overlay of a particular sheet, on paper, to mark up by hand.
-2. **Side by side.** Overlay and the `Tab` blink cover most of it, and this was
-   a "2-up virtual page" hack in the fork. Owning the viewport makes it an
-   honest second viewport, but nothing has needed it yet.
-3. **Alignment** (projection-profile registration). Designed in the fork,
+1. **Windows packaging.** The core cross-builds and passes its harness under
+   Wine; the shell needs a distribution with a MinGW Qt 6, and then an installer.
+2. **Alignment** (projection-profile registration). Designed in the fork,
    unbuilt, and now measured against: the one sample pair that looked like it
    might need it turns out to have no offset to find. Build it only if a
    document set turns up with a real basin the probe can see.

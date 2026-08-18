@@ -596,6 +596,14 @@ a fifth answer to that question — a row of five where the fifth is not a membe
 of the set says the wrong thing quietly and repeatedly. It keeps the View menu,
 the right-click menu and `5`.
 
+**Shift and the wheel goes sideways**, because that is what every viewer a
+reader arrives here from does, and because at any zoom that makes a resistor
+value legible the sheet is wider than the window. It moves the scrollbar
+directly rather than handing the event on to it, which is the usual way and only
+works while the bar is on screen — and it takes whichever axis carries the
+movement, since some platforms swap the two themselves when Shift is held and
+reading only the vertical would make it do nothing there.
+
 **The toolbar has pictures now**, and the reason it did not is answered rather
 than forgotten. It said: there is no icon set that says "only the earlier
 revision", and a toolbar of guesses is worse than no toolbar. Both halves still

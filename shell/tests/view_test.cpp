@@ -760,6 +760,46 @@ int main(int argc, char **argv) {
               QStringLiteral("with the scrollbar back"));
     }
 
+    // Getting about a sheet larger than the window — which, at a zoom that
+    // makes a resistor value legible, is every sheet. These are the gestures a
+    // reader arrives here already knowing from another viewer.
+    {
+        view->setFlow(CompareView::Flow::Continuous);
+        view->setZoom(3.0);
+        QTest::qWait(50);
+        auto *h = view->horizontalScrollBar();
+        auto *v = view->verticalScrollBar();
+        check(h->maximum() > 0 && v->maximum() > 0,
+              QStringLiteral("the sheet is wider and taller than the window, %1 x %2")
+                  .arg(h->maximum())
+                  .arg(v->maximum()));
+        h->setValue(h->maximum() / 2);
+        v->setValue(v->maximum() / 2);
+        const int wasH = h->value();
+        const int wasV = v->value();
+
+        auto wheel = [&](int notches, Qt::KeyboardModifiers mods) {
+            QWheelEvent w(QPointF(200, 200), view->viewport()->mapToGlobal(QPoint(200, 200)),
+                          QPoint(0, 0), QPoint(0, notches * 120), Qt::NoButton, mods,
+                          Qt::NoScrollPhase, false);
+            QApplication::sendEvent(view->viewport(), &w);
+            QTest::qWait(20);
+        };
+        wheel(-1, Qt::ShiftModifier);
+        check(h->value() > wasH, QStringLiteral("Shift and the wheel goes right, %1 to %2")
+                                     .arg(wasH)
+                                     .arg(h->value()));
+        check(v->value() == wasV, QStringLiteral("and leaves the vertical scroll alone"));
+        wheel(1, Qt::ShiftModifier);
+        check(h->value() == wasH, QStringLiteral("the other way comes back"));
+        wheel(-1, Qt::NoModifier);
+        check(v->value() > wasV && h->value() == wasH,
+              QStringLiteral("and without Shift it is the scroll it always was"));
+        v->setValue(wasV);
+        view->setFit(CompareView::Fit::Width);
+        QTest::qWait(50);
+    }
+
     // Printing, checked by printing to a PDF and reading back what came out.
     // A reviewer's other output is paper: the overlay of the sheets that
     // changed, to mark up by hand.

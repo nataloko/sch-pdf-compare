@@ -3,6 +3,7 @@
 
 #include "Session.h"
 
+#include <QApplication>
 #include <QKeyEvent>
 #include <QMouseEvent>
 #include <QPainter>
@@ -536,6 +537,31 @@ void CompareView::wheelEvent(QWheelEvent *e) {
         return;
     }
     m_wheelSpin = 0;
+    if (e->modifiers() & Qt::ShiftModifier) {
+        // Sideways, the way every PDF viewer a reader arrives here from does
+        // it. Done by hand rather than by handing the event to the horizontal
+        // scrollbar, because that only moves when the bar is on screen, and a
+        // sheet wider than the window is exactly when this is wanted.
+        //
+        // Whichever axis carries the movement: some platforms swap them
+        // themselves when Shift is held, and reading only the vertical would
+        // make this do nothing on those.
+        QScrollBar *h = horizontalScrollBar();
+        const QPoint px = e->pixelDelta();
+        int by = 0;
+        if (!px.isNull()) {
+            by = px.y() != 0 ? px.y() : px.x();
+        } else {
+            const QPoint ang = e->angleDelta();
+            const int a = ang.y() != 0 ? ang.y() : ang.x();
+            by = a * QApplication::wheelScrollLines() * h->singleStep() / 120;
+        }
+        if (by != 0) {
+            h->setValue(h->value() - by); // wheel down goes right
+            e->accept();
+            return;
+        }
+    }
     QAbstractScrollArea::wheelEvent(e);
 }
 

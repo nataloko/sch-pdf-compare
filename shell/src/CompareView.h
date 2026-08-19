@@ -40,26 +40,32 @@ class CompareView : public QAbstractScrollArea {
     // is drawn twice on top of itself and neither reading is legible.
     enum class Layout { Single, SideBySide };
 
-    // Whether the viewport scrolls through the set at all.
+    // Whether the viewport runs through the whole set, or holds one sheet of it.
     //
     // `Continuous` lays every sheet out in one column and scrolls through them,
     // which is right for reading a set the way it was drawn.
     //
-    // `SinglePage` shows **one whole sheet and nothing else**: the sheet being
-    // read, fitted to the viewport, with no scrolling anywhere. `PageUp`,
-    // `PageDown` and the wheel step from sheet to sheet, `Home` and `End` go to
-    // the ends of the set. It is the view for flipping through a set looking
-    // for the sheet that changed, where scrolling is the thing in the way.
+    // `SinglePage` lays out **one sheet and no others**. Whatever of it does not
+    // fit is reached by scrolling around that sheet, and the scroll stops at its
+    // edges; the wheel notch or the `PageDown` that finds nothing left is the one
+    // that turns the sheet. Forwards it lands at the top of the next sheet and
+    // backwards at the foot of the previous one, so the movement carries on into
+    // the new sheet instead of being at the far end of it already and turning
+    // another. `Home` and `End` go to the ends of the set.
     //
-    // Because "the whole sheet is on screen" is the entire definition, asking
-    // for a closer look leaves it: any zoom, and any fit other than to the
-    // page, puts the viewport back into the continuous scroll rather than
-    // quietly becoming a single sheet you have to scroll around.
+    // **Orthogonal to the zoom**, which is the reader's throughout. It used to
+    // *be* a zoom: the flow was defined as "the whole sheet on screen", so a
+    // closer look could only leave it, and the button unchecked itself the
+    // moment anybody zoomed. That made a general way of looking at a set —
+    // scroll through it, or take it a sheet at a time — into a fifth fit mode
+    // that switched itself off. Fitting the page is the companion command, not
+    // part of the definition, and this is how the viewer every reader arrives
+    // here from arranges the same two settings.
     //
-    // Orthogonal to `Layout` and to the view mode. A reader can be on one sheet
-    // at a time, side by side, at whichever tolerance — these are three
-    // different questions and combining them into one list of choices is how a
-    // control ends up switching off something unrelated.
+    // Orthogonal to `Layout` and to the view mode as well. A reader can be on
+    // one sheet at a time, side by side, at whichever tolerance — these are
+    // three different questions and combining them into one list of choices is
+    // how a control ends up switching off something unrelated.
     enum class Flow { Continuous, SinglePage };
 
     Layout layout() const { return m_layout_mode; }
@@ -92,8 +98,9 @@ class CompareView : public QAbstractScrollArea {
 
   signals:
     void currentPageChanged(int page);
-    // The viewport left, or entered, the one-sheet flow. Emitted because it can
-    // leave on its own: a zoom is a request the flow cannot honour.
+    // The viewport entered, or left, the one-sheet flow. The window keeps its
+    // menu entry in step with this rather than assuming it is the only thing
+    // that sets the flow.
     void flowChanged(bool singlePage);
     // Whether the next drag marks a region to exclude. The window says so.
     void regionArmedChanged(bool armed);
@@ -126,6 +133,8 @@ class CompareView : public QAbstractScrollArea {
     void relayout();
     void applyFit();
     // Moves by whole sheets, for the keys and the wheel in the one-sheet flow.
+    // Lands at the top of the sheet going forwards and at its foot coming back,
+    // so that the movement that turned the sheet can carry on into it.
     void stepSheet(int by);
     QPoint contentOrigin() const;
     const QImage &tileAt(int page, const QRect &tile, ScViewMode mode);

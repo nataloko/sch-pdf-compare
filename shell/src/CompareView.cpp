@@ -37,8 +37,11 @@ void CompareView::setSession(Session *s) {
     m_session = s;
     m_tiles.clear();
     m_page = 1;
-    // The one-sheet flow owns the fit; opening a second pair while it is on
-    // must not quietly leave a sheet too tall for the window.
+    // A new pair starts at a fit rather than at whatever the last one was
+    // examined at, and one sheet at a time starts at the whole sheet: a set
+    // that has just been opened is going to be flipped through to find out
+    // which sheets changed. Only the starting point — the reader's own zoom is
+    // theirs from here on, and the flow does not take it back.
     m_fit = m_flow == Flow::SinglePage ? Fit::Page : Fit::Width;
     applyFit();
     verticalScrollBar()->setValue(0);
@@ -89,9 +92,9 @@ void CompareView::relayout() {
         return;
     }
     const int n = m_session->pageCount();
-    // Which sheets get placed at all. One sheet at a time is not a scroll that
-    // stops early: the other sheets are not laid out, so nothing can scroll on
-    // to them and a fit to the page is a fit to this page.
+    // Which sheets get placed at all. One sheet at a time places exactly one:
+    // the others are not laid out, so no scroll can run on to them however far
+    // the reader has zoomed in, and a fit to the page is a fit to *this* page.
     int first = 1;
     int last = n;
     if (m_flow == Flow::SinglePage) {
@@ -169,13 +172,11 @@ void CompareView::applyFit() {
 }
 
 void CompareView::setZoom(double z, const QPoint &anchor) {
-    // Asking for a closer look is asking to leave a view whose whole definition
-    // is that the sheet is entirely on screen. Better to leave it visibly — the
-    // button unchecks itself — than to become a single sheet that has to be
-    // scrolled around, which is the thing this flow exists to remove.
-    if (m_flow == Flow::SinglePage) {
-        setFlow(Flow::Continuous);
-    }
+    // The flow is not touched. It used to be: the one-sheet flow meant "the
+    // whole sheet on screen", so a zoom could only end it, and reading a value
+    // off a component threw the reader back into the scroll every time. Which
+    // sheets are laid out and how large they are drawn are separate questions,
+    // and a zoom answers only the second.
     z = qBound(kMinZoom, z, kMaxZoom);
     if (qFuzzyCompare(z, m_zoom)) {
         return;
@@ -228,24 +229,27 @@ void CompareView::setFlow(Flow f) {
     m_flow = f;
     m_page = qMax(1, was);
     const bool one = f == Flow::SinglePage;
-    if (one) {
-        // The whole sheet, or this is not the view it says it is. The zoom is
-        // the flow's to set here rather than the reader's, and the scrollbars
-        // are taken away rather than left at an empty range — a scrollbar that
-        // is there and cannot move is a viewport that looks stuck.
-        m_fit = Fit::Page;
-    }
-    const auto bars = one ? Qt::ScrollBarAlwaysOff : Qt::ScrollBarAsNeeded;
-    setHorizontalScrollBarPolicy(bars);
-    setVerticalScrollBarPolicy(bars);
+    // The zoom and the fit are left exactly as they were, in both directions.
+    // Entering used to force a fit to the page, on the grounds that the whole
+    // sheet on screen was what the flow meant; it is not what it means now, and
+    // a reader at 300% reading a component value who wants the same corner of
+    // the next sheet is the case that settles it. Fit Page sits next to this in
+    // the menu for the other case.
+    //
+    // The scrollbars are left to `ScrollBarAsNeeded` for the same reason. They
+    // were forced off here, which was right while nothing could scroll and is a
+    // viewport that cannot be moved now that something can.
     if (m_fit != Fit::None) {
         applyFit();
     } else {
         relayout();
     }
     if (one) {
+        // The top of the sheet, wherever in the run of them the scroll was.
+        // Sideways is kept: at a zoom the reader has usually pulled the sheet
+        // to the part they are reading, and that part is in the same place on
+        // the next sheet.
         verticalScrollBar()->setValue(0);
-        horizontalScrollBar()->setValue(0);
     } else {
         goToPage(m_page);
     }
@@ -257,18 +261,24 @@ void CompareView::setFlow(Flow f) {
 void CompareView::stepSheet(int by) {
     const int n = m_session ? m_session->pageCount() : 0;
     const int want = qBound(1, m_page + by, qMax(1, n));
-    if (want != m_page) {
-        goToPage(want);
+    if (want == m_page) {
+        return;
+    }
+    goToPage(want); // which lands at the top of it
+    if (by < 0) {
+        // Coming back, land at the foot instead. The reader arrived here by
+        // running out of sheet going up, and the top of the new one is where
+        // they would run out again at once — so every further notch would turn
+        // another sheet and none of them would ever be looked at.
+        verticalScrollBar()->setValue(verticalScrollBar()->maximum());
     }
 }
 
 void CompareView::setFit(Fit f) {
-    // Fitting the width of a portrait sheet in a wide window makes it taller
-    // than the viewport, which is scrolling — so it is a way out of the
-    // one-sheet flow, not a setting inside it.
-    if (m_flow == Flow::SinglePage && f != Fit::Page) {
-        setFlow(Flow::Continuous);
-    }
+    // Every fit is a setting inside the one-sheet flow rather than a way out of
+    // it. Fitting the width of a portrait sheet in a wide window leaves it
+    // taller than the viewport, and scrolling down that one sheet is what this
+    // flow now means.
     m_fit = f;
     applyFit();
     viewport()->update();
@@ -471,25 +481,36 @@ void CompareView::keyPressEvent(QKeyEvent *e) {
         e->accept();
         return;
     }
-    // Nothing scrolls here, so the keys that would scroll move by whole sheets
-    // instead. Anything else and they are dead keys in the one view where
-    // stepping through sheets is the only thing a reader is doing.
     if (m_flow == Flow::SinglePage && m_session) {
+        QScrollBar *v = verticalScrollBar();
+        QScrollBar *h = horizontalScrollBar();
         switch (e->key()) {
+        // A screenful at a time, and the screenful that finds nothing left of
+        // this sheet is the one that turns to the next. Written as a rule about
+        // the scroll rather than about the flow, which is why a sheet fitted to
+        // the window needs no special case: there is never anything left, so
+        // every press turns a sheet, exactly as it did when nothing here could
+        // scroll at all.
         case Qt::Key_PageDown:
-        case Qt::Key_Down:
-        case Qt::Key_Right:
         case Qt::Key_Space:
-            stepSheet(1);
+            if (v->value() >= v->maximum()) {
+                stepSheet(1);
+            } else {
+                v->triggerAction(QAbstractSlider::SliderPageStepAdd);
+            }
             e->accept();
             return;
         case Qt::Key_PageUp:
-        case Qt::Key_Up:
-        case Qt::Key_Left:
         case Qt::Key_Backspace:
-            stepSheet(-1);
+            if (v->value() <= v->minimum()) {
+                stepSheet(-1);
+            } else {
+                v->triggerAction(QAbstractSlider::SliderPageStepSub);
+            }
             e->accept();
             return;
+        // The ends of the set, not the ends of the sheet. A reader in this flow
+        // is going through sheets, and the sheet's own ends are a scroll away.
         case Qt::Key_Home:
             goToPage(1);
             e->accept();
@@ -498,6 +519,39 @@ void CompareView::keyPressEvent(QKeyEvent *e) {
             goToPage(m_session->pageCount());
             e->accept();
             return;
+        // The arrows scroll while there is sheet to scroll and turn sheets when
+        // there is not. Keeping them on sheets always would leave a zoomed-in
+        // viewport the keyboard cannot move; leaving them to scroll always
+        // would make them dead keys on a fitted sheet, which is the view they
+        // were the flick through the set for.
+        case Qt::Key_Down:
+            if (v->maximum() <= v->minimum()) {
+                stepSheet(1);
+                e->accept();
+                return;
+            }
+            break;
+        case Qt::Key_Up:
+            if (v->maximum() <= v->minimum()) {
+                stepSheet(-1);
+                e->accept();
+                return;
+            }
+            break;
+        case Qt::Key_Right:
+            if (h->maximum() <= h->minimum()) {
+                stepSheet(1);
+                e->accept();
+                return;
+            }
+            break;
+        case Qt::Key_Left:
+            if (h->maximum() <= h->minimum()) {
+                stepSheet(-1);
+                e->accept();
+                return;
+            }
+            break;
         default:
             break;
         }
@@ -522,19 +576,31 @@ void CompareView::wheelEvent(QWheelEvent *e) {
         e->accept();
         return;
     }
-    if (m_flow == Flow::SinglePage) {
-        // The wheel is how a set gets flipped through, and there is nothing for
-        // it to scroll. Accumulated to whole notches: a touchpad sends a
-        // fraction of one per event, and a sheet per fraction takes 85 sheets
-        // past in a flick.
-        m_wheelSpin += e->angleDelta().y();
-        const int notches = m_wheelSpin / 120;
-        if (notches != 0) {
-            m_wheelSpin -= notches * 120;
-            stepSheet(-notches); // wheel down is forwards
+    if (m_flow == Flow::SinglePage && !(e->modifiers() & Qt::ShiftModifier)) {
+        // Down the wheel is down the sheet, and then on to the next one.
+        // Whatever of this sheet is still below the window is scrolled first,
+        // and the notch that finds none left is the one that turns the sheet.
+        // On a sheet fitted to the window there is never any left, so this is
+        // the flick through the set it has always been.
+        QScrollBar *v = verticalScrollBar();
+        const QPoint ang = e->angleDelta();
+        const int a = ang.y() != 0 ? ang.y() : ang.x();
+        const bool forwards = a < 0; // wheel down
+        const bool atEnd = forwards ? v->value() >= v->maximum() : v->value() <= v->minimum();
+        if (a != 0 && atEnd) {
+            // Accumulated to whole notches: a touchpad sends a fraction of one
+            // per event, and a sheet per fraction takes 85 sheets past in a
+            // flick. Only here — scrolling within a sheet is the ordinary
+            // scroll and wants every fraction of it.
+            m_wheelSpin += a;
+            const int notches = m_wheelSpin / 120;
+            if (notches != 0) {
+                m_wheelSpin -= notches * 120;
+                stepSheet(-notches);
+            }
+            e->accept();
+            return;
         }
-        e->accept();
-        return;
     }
     m_wheelSpin = 0;
     if (e->modifiers() & Qt::ShiftModifier) {
@@ -579,9 +645,11 @@ bool CompareView::contentToPage(const QPoint &content, int *page, QPointF *pageP
 }
 
 void CompareView::mousePressEvent(QMouseEvent *e) {
-    // Grab and pull. Only when there is somewhere to pull to: one sheet at a
-    // time has nothing to scroll, and a closed-hand cursor over a viewport
-    // that cannot move is a promise the view does not keep.
+    // Grab and pull. Only when there is somewhere to pull to — a sheet fitted
+    // to the window has nothing to scroll, and a closed-hand cursor over a
+    // viewport that cannot move is a promise the view does not keep. Asked of
+    // the scrollbars rather than of the flow, so that one sheet at a time at a
+    // zoom is grabbed like anything else.
     if (e->button() == Qt::MiddleButton && !m_dragging &&
         (horizontalScrollBar()->maximum() > 0 || verticalScrollBar()->maximum() > 0)) {
         m_panning = true;

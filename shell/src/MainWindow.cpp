@@ -204,6 +204,10 @@ void MainWindow::buildMenus() {
     // side, as readily as either on its own. Putting it in the group would make
     // choosing one sheet switch the overlay off, which is the trap the group
     // was built to close in the first place.
+    //
+    // It is not a zoom either, which it used to behave like: it stays on
+    // through zooming in and out, and Fit Page below is the separate command
+    // for putting the whole sheet on screen.
     m_singlePageAct = view->addAction(tr("Single &Page"));
     m_singlePageAct->setObjectName(QStringLiteral("singlePage"));
     m_singlePageAct->setCheckable(true);
@@ -213,9 +217,10 @@ void MainWindow::buildMenus() {
         m_view->setFlow(on ? CompareView::Flow::SinglePage : CompareView::Flow::Continuous);
         updateStatus();
     });
-    // The viewport can leave this flow without being asked: showing the whole
-    // sheet is what the flow *is*, so a zoom cannot be honoured inside it. The
-    // button has to say so, or it claims a view the window is not in.
+    // The entry follows the viewport rather than assuming it is the only thing
+    // that sets the flow. It used to have a second job — the flow switched
+    // itself off whenever the reader zoomed, and the tick had to admit it —
+    // which is exactly the behaviour that has gone.
     connect(m_view, &CompareView::flowChanged, this, [this](bool one) {
         const QSignalBlocker block(m_singlePageAct);
         m_singlePageAct->setChecked(one);

@@ -65,12 +65,14 @@ customer material. The `samples/` directory stays out of the repository.
 - **A side-by-side view** with the `4` key. The two revisions have one zoom and
   one position. This helps you where the overlay puts two different texts on top
   of each other.
-- **A view of one full sheet.** The `5` key shows one sheet at the size of the
-  window. There is no scroll. The mouse wheel, `PageUp` and `PageDown` move to
-  the previous sheet and to the next sheet. `Home` and `End` go to the first
-  sheet and to the last sheet. A zoom operation stops this view, because the
-  sheet is then larger than the window. This view operates with the overlay,
-  with one revision, and with the side-by-side view.
+- **A view of one sheet.** The `5` key shows one sheet of the set. The other
+  sheets stay out of the view, thus the scroll stops at the edges of this sheet.
+  The mouse wheel and `PageDown` move down the sheet, and move to the next sheet
+  at the bottom of it. `PageUp` moves up the sheet, and to the previous sheet at
+  the top of it. `Home` and `End` go to the first sheet and to the last sheet.
+  The zoom does not change, thus you can examine the same area on many sheets at
+  a large zoom. Use **Fit Page** to show the full sheet in the window. This view
+  operates with the overlay, with one revision, and with the side-by-side view.
 - **Movement on a sheet that is larger than the window.** Hold the middle button
   and move the pointer to move the sheet. Hold `Shift` and turn the wheel to
   move the sheet to the left and to the right.

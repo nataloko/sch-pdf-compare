@@ -633,9 +633,10 @@ int main(int argc, char **argv) {
               QStringLiteral("and the warning goes with it: '%1'").arg(status->text()));
     }
 
-    // One sheet at a time: the whole sheet on screen and nothing to scroll.
-    // A set is flipped through as often as it is read, and scrolling is the
-    // thing in the way when you are looking for the sheet that changed.
+    // One sheet at a time. Not a fifth way of drawing the comparison but a way
+    // of going through the set — scroll the whole run of sheets, or take one
+    // sheet at a time — so it holds through a zoom, and the sheet it holds is
+    // scrolled around when the reader has zoomed past the window.
     {
         auto *one = win.findChild<QAction *>(QStringLiteral("singlePage"));
         check(one != nullptr, QStringLiteral("there is a single-page action"));
@@ -659,7 +660,15 @@ int main(int argc, char **argv) {
         check(status->text().contains(QStringLiteral("one sheet")),
               QStringLiteral("and says so: '%1'").arg(status->text()));
 
-        // The two halves of what this view is. Nothing scrolls...
+        // Fitting the page is the companion command rather than part of the
+        // definition, and it is a setting *inside* this flow: it used to be the
+        // only zoom the flow allowed, and any other one ended it.
+        view->setFit(CompareView::Fit::Page);
+        QTest::qWait(50);
+        check(view->flow() == CompareView::Flow::SinglePage,
+              QStringLiteral("fitting the page is a setting inside the flow"));
+
+        // And fitted, this is what it was built for. Nothing scrolls...
         check(view->verticalScrollBar()->maximum() == 0 &&
                   view->horizontalScrollBar()->maximum() == 0,
               QStringLiteral("there is nothing to scroll, %1 x %2")
@@ -693,9 +702,9 @@ int main(int argc, char **argv) {
         QTest::qWait(50);
         check(view->currentPage() == 1, QStringLiteral("and Home to the first"));
 
-        // The wheel has nothing to scroll, so it turns sheets. One notch, one
-        // sheet — a touchpad sends fractions of a notch and would otherwise
-        // send a whole set past in a flick.
+        // Fitted, the wheel has nothing to scroll, so every notch turns a
+        // sheet. One notch, one sheet — a touchpad sends fractions of a notch
+        // and would otherwise send a whole set past in a flick.
         auto spin = [&](int notches) {
             QWheelEvent w(QPointF(200, 200), view->viewport()->mapToGlobal(QPoint(200, 200)),
                           QPoint(0, 0), QPoint(0, notches * 120), Qt::NoButton, Qt::NoModifier,
@@ -710,17 +719,114 @@ int main(int argc, char **argv) {
         spin(1);
         check(view->currentPage() == 1, QStringLiteral("and back up again"));
 
-        // A zoom is a request this view cannot honour, so it leaves — visibly,
-        // with the button unchecking itself. The alternative is a single sheet
-        // that has to be scrolled around, which is what it exists to remove.
-        view->setZoom(view->zoom() * 2.0);
+        // A zoom used to end this view, on the grounds that the whole sheet on
+        // screen was what it meant. Reading a component value is exactly what a
+        // reviewer zooms in for, so the view switched itself off in the middle
+        // of the job it was picked for. It stays on, and what changes is that
+        // there is now a sheet to move around.
+        const int onSheet = view->currentPage();
+        view->setZoom(view->zoom() * 3.0);
         QTest::qWait(50);
-        check(view->flow() == CompareView::Flow::Continuous,
-              QStringLiteral("zooming in leaves the one-sheet view"));
-        check(!one->isChecked(), QStringLiteral("and the button says so"));
+        check(view->flow() == CompareView::Flow::SinglePage,
+              QStringLiteral("zooming in keeps one sheet at a time"));
+        check(one->isChecked(), QStringLiteral("and the menu entry still says so"));
+        check(view->currentPage() == onSheet,
+              QStringLiteral("on the sheet it was on, got %1").arg(view->currentPage()));
+        check(status->text().contains(QStringLiteral("one sheet")),
+              QStringLiteral("as does the status line: '%1'").arg(status->text()));
+        auto *sv = view->verticalScrollBar();
+        check(sv->maximum() > 0,
+              QStringLiteral("with the sheet now larger than the window, %1")
+                  .arg(sv->maximum()));
 
-        // One sheet at a time and side by side are different questions, so
-        // asking one must not answer the other.
+        // One sheet, though: the scroll stops at its foot instead of running on
+        // into the next one, which is the whole difference from the continuous
+        // flow and the thing that would quietly disappear if the flow were only
+        // a fit.
+        sv->setValue(sv->maximum());
+        QTest::qWait(20);
+        check(view->currentPage() == onSheet,
+              QStringLiteral("scrolling to the foot of it stays on it, got %1")
+                  .arg(view->currentPage()));
+
+        // The notch that finds nothing left is the one that turns the sheet,
+        // and it lands at the top of the next one — so the notch after it reads
+        // that sheet rather than turning another. Landing where the movement
+        // left off would put the reader at the foot of every sheet in the set,
+        // one notch each.
+        spin(-1);
+        check(view->currentPage() == onSheet + 1,
+              QStringLiteral("a notch at the foot turns the sheet, got %1")
+                  .arg(view->currentPage()));
+        check(sv->value() == sv->minimum(),
+              QStringLiteral("landing at the top of it, %1 of %2")
+                  .arg(sv->value())
+                  .arg(sv->maximum()));
+        spin(-1);
+        check(view->currentPage() == onSheet + 1 && sv->value() > sv->minimum(),
+              QStringLiteral("and the next notch reads that sheet, sheet %1 at %2")
+                  .arg(view->currentPage())
+                  .arg(sv->value()));
+
+        // Backwards is the mirror of it, for the same reason.
+        sv->setValue(sv->minimum());
+        QTest::qWait(20);
+        spin(1);
+        check(view->currentPage() == onSheet,
+              QStringLiteral("a notch at the top turns back, got %1").arg(view->currentPage()));
+        check(sv->value() == sv->maximum(),
+              QStringLiteral("landing at the foot of it, %1 of %2")
+                  .arg(sv->value())
+                  .arg(sv->maximum()));
+
+        // `PageDown` follows the same rule, so it is a screenful while there is
+        // one left and a sheet when there is not.
+        QTest::keyClick(view, Qt::Key_PageDown);
+        QTest::qWait(50);
+        check(view->currentPage() == onSheet + 1,
+              QStringLiteral("PageDown at the foot turns the sheet, got %1")
+                  .arg(view->currentPage()));
+        QTest::keyClick(view, Qt::Key_PageDown);
+        QTest::qWait(50);
+        check(view->currentPage() == onSheet + 1 && sv->value() > sv->minimum(),
+              QStringLiteral("and from the top of it, a screenful of it: sheet %1 at %2")
+                  .arg(view->currentPage())
+                  .arg(sv->value()));
+
+        // The middle button pulls this sheet about too. It used to be refused
+        // here, correctly, because there was nowhere to pull to.
+        {
+            auto *sh = view->horizontalScrollBar();
+            check(sh->maximum() > 0,
+                  QStringLiteral("the zoomed sheet is wider than the window too, %1")
+                      .arg(sh->maximum()));
+            sh->setValue(0); // so there is certainly room to pull towards
+            const int fromH = sh->value();
+            const int by = qMin(100, sh->maximum() - fromH);
+            QMouseEvent down(QEvent::MouseButtonPress, QPointF(400, 300),
+                             view->viewport()->mapToGlobal(QPointF(400, 300)), Qt::MiddleButton,
+                             Qt::MiddleButton, Qt::NoModifier);
+            QMouseEvent move(QEvent::MouseMove, QPointF(400 - by, 300),
+                             view->viewport()->mapToGlobal(QPointF(400 - by, 300)), Qt::NoButton,
+                             Qt::MiddleButton, Qt::NoModifier);
+            QMouseEvent up(QEvent::MouseButtonRelease, QPointF(400 - by, 300),
+                           view->viewport()->mapToGlobal(QPointF(400 - by, 300)),
+                           Qt::MiddleButton, Qt::NoButton, Qt::NoModifier);
+            QApplication::sendEvent(view->viewport(), &down);
+            QApplication::sendEvent(view->viewport(), &move);
+            QApplication::sendEvent(view->viewport(), &up);
+            QTest::qWait(20);
+            check(by > 0 && sh->value() == fromH + by,
+                  QStringLiteral("the middle button drags one sheet at a time, %1 wanted %2")
+                      .arg(sh->value())
+                      .arg(fromH + by));
+        }
+        shot(&win, QStringLiteral("single-page-zoomed"));
+
+        // Back to the whole sheet for what follows. One sheet at a time and
+        // side by side are different questions, so asking one must not answer
+        // the other.
+        view->setFit(CompareView::Fit::Page);
         one->setChecked(true);
         QTest::qWait(50);
         win.findChild<QAction *>(QStringLiteral("sideBySide"))->setChecked(true);
@@ -751,7 +857,7 @@ int main(int argc, char **argv) {
         check(view->currentPage() != wasOn,
               QStringLiteral("stepping to a change on another sheet brings that sheet up"));
         check(view->flow() == CompareView::Flow::SinglePage,
-              QStringLiteral("without leaving the view, since the zoom never moved"));
+              QStringLiteral("and nothing about that left the view"));
 
         one->setChecked(false);
         QTest::qWait(50);

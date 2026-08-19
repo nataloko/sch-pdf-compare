@@ -565,21 +565,57 @@ opening that file — so the control is switched off in every other view rather
 than left live and inert, which is what "clicking Only A does nothing" turned
 out to mean.
 
-**One sheet at a time means one whole sheet and no scrolling.** It was built
-first as "the scroll stops at the foot of this sheet", which is what most
-document readers do and is not what was asked for or what the view is worth
-having for: a set is flipped through to find the sheet that changed, and
-scrolling is the thing in the way. The sheet is fitted to the viewport, both
-scrollbars are taken away rather than left at an empty range, and `PageUp`,
-`PageDown`, the arrow keys, `Home`, `End` and the wheel all move by whole
-sheets. Wheel notches are accumulated to 120 before one counts, or a touchpad
-sends an 85-sheet set past in a flick.
+**One sheet at a time is a way through the set, not a zoom.** This took three
+attempts and the middle one is the instructive failure.
 
-Because "the whole sheet is on screen" is the entire definition, **a zoom leaves
-the flow** — visibly, with the button unchecking itself — rather than quietly
-turning it into a single sheet that has to be scrolled around. Fitting the width
-leaves it too: a portrait sheet fitted to the width of a wide window is taller
-than the viewport, which is scrolling by another name.
+It was built first as "the scroll stops at the foot of this sheet". That was
+rejected as merely what most document readers do, and not what the view is
+worth having for — a set is flipped through to find the sheet that changed, and
+scrolling is the thing in the way. So it was rebuilt as **one whole sheet
+fitted to the window and nothing to scroll anywhere**, with both scrollbars
+taken away rather than left at an empty range.
+
+Defining it that way makes the flow a zoom. "The whole sheet is on screen" is a
+statement about magnification, so any other magnification contradicts it, and
+the view had no choice but to switch itself off the moment the reader looked
+closer at a component value. Reading a component value is the one thing a
+reviewer zooms in for. The flow ended itself in the middle of the job it had
+been chosen for, and the button unchecking itself made that visible without
+making it any less wrong.
+
+So it is now what SumatraPDF calls single page, which is what this should have
+copied from the fork to begin with. One sheet is laid out and the others are
+not; the zoom is the reader's throughout, in and out of the flow. Whatever of
+the sheet does not fit is reached by scrolling around it, and **the scroll stops
+at that sheet's edges instead of running on into the next one** — which is the
+whole difference from the continuous flow, and precisely the part that vanishes
+if the flow is allowed to collapse into a fit. The first attempt was closer than
+it was given credit for; what it was missing was the boundary.
+
+The boundary is where the fork earned its keep, and the rule comes from it:
+**the wheel notch, or the `PageDown`, that finds nothing left of this sheet is
+the one that turns to the next**. Forwards it lands at the *top* of the new
+sheet, backwards at its *foot*. `DisplayModel::GoToNextPage` carries a comment
+saying why, and it is not obvious — land where the movement left off and the
+reader arrives at the far end of the new sheet, so the next notch turns another,
+and a flick of the wheel goes through the set a sheet per notch without showing
+any of them.
+
+Written as a rule about the scroll rather than about the flow, the fitted case
+needs no special case of its own: a sheet entirely on screen never has anything
+left to scroll, so every notch and every `PageDown` turns a sheet — which is the
+flick through the set the second attempt was reaching for, arrived at without
+having to forbid the zoom. Fitting the page is the companion command, and
+`Fit Page` sits beside `Single Page` in the View menu for it. Notches are still
+accumulated to 120 before one counts, but only at the boundary: a touchpad sends
+fractions of a notch and would otherwise take an 85-sheet set past in a flick,
+while scrolling *within* a sheet wants every fraction of it.
+
+`Home` and `End` are the ends of the set rather than of the sheet, since going
+through sheets is what a reader is doing here. The arrow keys scroll while there
+is sheet to scroll and turn sheets when there is not — keeping them on sheets
+always would leave a zoomed-in viewport the keyboard cannot move, and leaving
+them to scroll always would make them dead keys on a fitted sheet.
 
 It is a flow, not a view mode. A/B/overlay/side-by-side are one exclusive choice
 because they answer "what am I looking at"; whether the viewport scrolls through
@@ -608,9 +644,11 @@ reading only the vertical would make it do nothing there.
 spoken for: Ctrl+drag marks a region to exclude, and arming that from the menu
 takes a plain left drag as well, so a left-drag pan would have to know which of
 the three it was in the middle of. The middle button was free. It grabs only
-when there is something to scroll — one sheet at a time has nothing — because a
-closed-hand cursor over a viewport that cannot move is a promise the view does
-not keep. The scroll is measured from where the grab started rather than from
+when there is something to scroll — a sheet fitted to the window has nothing —
+because a closed-hand cursor over a viewport that cannot move is a promise the
+view does not keep. That is asked of the scrollbars rather than of the flow, so
+a zoomed-in sheet in the one-sheet flow is grabbed like any other. The scroll is
+measured from where the grab started rather than from
 the last event, so a drag that runs into the end of the set and comes back lands
 where it began.
 

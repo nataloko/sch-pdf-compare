@@ -441,11 +441,11 @@ dependencies = [
 
 [[package]]
 name = "sc-diff"
-version = "0.1.0"
+version = "0.2.0"
 
 [[package]]
 name = "sc-ffi"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "cbindgen",
  "sc-diff",
@@ -456,18 +456,18 @@ dependencies = [
 
 [[package]]
 name = "sc-fixture"
-version = "0.1.0"
+version = "0.2.0"
 
 [[package]]
 name = "sc-match"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "sc-diff",
 ]
 
 [[package]]
 name = "sc-render"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "mupdf",
  "sc-diff",
@@ -476,7 +476,7 @@ dependencies = [
 
 [[package]]
 name = "sc-session"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "libc",
  "sc-diff",

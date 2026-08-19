@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.21)
-project(sch-pdf-compare VERSION 0.1.0 LANGUAGES C CXX)
+project(sch-pdf-compare VERSION 0.2.0 LANGUAGES C CXX)
 
 # C is enabled for one reason: the ABI harness must be compiled as C, not only
 # as C++. Without it CMake falls back to the C++ compiler for a .c file and the

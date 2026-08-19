@@ -605,8 +605,12 @@ Written as a rule about the scroll rather than about the flow, the fitted case
 needs no special case of its own: a sheet entirely on screen never has anything
 left to scroll, so every notch and every `PageDown` turns a sheet — which is the
 flick through the set the second attempt was reaching for, arrived at without
-having to forbid the zoom. Fitting the page is the companion command, and
-`Fit Page` sits beside `Single Page` in the View menu for it. Notches are still
+having to forbid the zoom. Fitting the page is the companion command, and it
+took `Ctrl+0` from fitting the width to say so — that is the key every viewer
+binds to the whole page, SumatraPDF included, and the width moved to `Ctrl+2`
+beside it, which is also where SumatraPDF keeps it. They were the other way
+round here for as long as the flow fitted the page by itself and nobody needed
+to ask for it. Notches are still
 accumulated to 120 before one counts, but only at the boundary: a touchpad sends
 fractions of a notch and would otherwise take an 85-sheet set past in a flick,
 while scrolling *within* a sheet wants every fraction of it.

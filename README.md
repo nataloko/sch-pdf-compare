@@ -71,8 +71,9 @@ customer material. The `samples/` directory stays out of the repository.
   at the bottom of it. `PageUp` moves up the sheet, and to the previous sheet at
   the top of it. `Home` and `End` go to the first sheet and to the last sheet.
   The zoom does not change, thus you can examine the same area on many sheets at
-  a large zoom. Use **Fit Page** to show the full sheet in the window. This view
-  operates with the overlay, with one revision, and with the side-by-side view.
+  a large zoom. Use **Fit Page** (`Ctrl+0`) to show the full sheet in the
+  window. This view operates with the overlay, with one revision, and with the
+  side-by-side view.
 - **Movement on a sheet that is larger than the window.** Hold the middle button
   and move the pointer to move the sheet. Hold `Shift` and turn the wheel to
   move the sheet to the left and to the right.

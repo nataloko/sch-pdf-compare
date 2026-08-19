@@ -662,9 +662,20 @@ int main(int argc, char **argv) {
 
         // Fitting the page is the companion command rather than part of the
         // definition, and it is a setting *inside* this flow: it used to be the
-        // only zoom the flow allowed, and any other one ended it.
-        view->setFit(CompareView::Fit::Page);
+        // only zoom the flow allowed, and any other one ended it. Being the
+        // companion is why it holds `Ctrl+0`, the key every viewer uses for it,
+        // and why the width moved to `Ctrl+2` beside it.
+        auto *fitPage = win.findChild<QAction *>(QStringLiteral("fitPage"));
+        auto *fitWidth = win.findChild<QAction *>(QStringLiteral("fitWidth"));
+        check(fitPage && fitWidth, QStringLiteral("both fits are actions of their own"));
+        check(fitPage && fitPage->shortcut() == QKeySequence(Qt::CTRL | Qt::Key_0),
+              QStringLiteral("Ctrl+0 fits the page"));
+        check(fitWidth && fitWidth->shortcut() == QKeySequence(Qt::CTRL | Qt::Key_2),
+              QStringLiteral("and Ctrl+2 the width"));
+        fitPage->trigger(); // the reader's route, not setFit() behind its back
         QTest::qWait(50);
+        check(view->fit() == CompareView::Fit::Page,
+              QStringLiteral("and triggering it fits the page"));
         check(view->flow() == CompareView::Flow::SinglePage,
               QStringLiteral("fitting the page is a setting inside the flow"));
 

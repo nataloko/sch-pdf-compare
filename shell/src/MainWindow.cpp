@@ -227,12 +227,21 @@ void MainWindow::buildMenus() {
         updateStatus();
     });
     view->addSeparator();
+    // `Ctrl+0` is the whole page and `Ctrl+2` the width, which is SumatraPDF's
+    // arrangement and most other viewers' as well. They were the other way
+    // round here until the one-sheet flow stopped fitting the page for the
+    // reader: fitting it is the companion to `5` now, and the companion is the
+    // one that wants the key everybody already knows.
+    QAction *fp = view->addAction(tr("Fit &Page"), this,
+                                  [this] { m_view->setFit(CompareView::Fit::Page); });
+    fp->setObjectName(QStringLiteral("fitPage"));
+    fp->setShortcut(Qt::CTRL | Qt::Key_0);
+    m_needSession.append(fp);
     QAction *fw = view->addAction(tr("Fit &Width"), this,
                                   [this] { m_view->setFit(CompareView::Fit::Width); });
-    fw->setShortcut(Qt::CTRL | Qt::Key_0);
+    fw->setObjectName(QStringLiteral("fitWidth"));
+    fw->setShortcut(Qt::CTRL | Qt::Key_2);
     m_needSession.append(fw);
-    m_needSession.append(
-        view->addAction(tr("Fit &Page"), this, [this] { m_view->setFit(CompareView::Fit::Page); }));
     QAction *zi = view->addAction(tr("Zoom &In"), this,
                                   [this] { m_view->setZoom(m_view->zoom() * 1.25); });
     zi->setShortcut(QKeySequence::ZoomIn);
